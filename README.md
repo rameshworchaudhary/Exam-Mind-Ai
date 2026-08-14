@@ -2,7 +2,8 @@
 ### AI-Powered Student OS — Complete SaaS Platform
 
 ---
-
+## Team Collaboration
+Developed and maintained collaboratively by the project team.
 ## 🚀 Quick Start (VS Code)
 
 ### Prerequisites
