@@ -1,6 +1,6 @@
 # ExamMind AI 🧠
 ### AI-Powered Student OS — Complete SaaS Platform
-
+Exam Mind AI - AI-powered exam preparation platform.
 ---
 
 ## 🚀 Quick Start (VS Code)
