@@ -14,10 +14,16 @@ export const metadata: Metadata = {
     "AI-powered platform for students: syllabus analysis, PYQ predictions, AI notes, handwritten assignments, viva prep, and more.",
   keywords: ["AI study", "exam preparation", "notes generator", "PYQ analysis"],
   authors: [{ name: "ExamMind AI" }],
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/logo-icon.svg",
+  },
   openGraph: {
     title: "ExamMind AI",
     description: "Your AI-Powered Student OS",
     type: "website",
+    images: ["/logo.svg"],
   },
 };
 
@@ -35,8 +41,8 @@ export default function RootLayout({
       <body className="min-h-screen bg-background font-sans antialiased">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="dark"
+          enableSystem={false}
           disableTransitionOnChange
         >
           <AuthProvider>

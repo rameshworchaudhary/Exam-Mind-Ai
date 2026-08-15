@@ -83,9 +83,12 @@ export default function ChatbotPage() {
         }),
       });
 
-      if (!response.ok) throw new Error("Chat failed");
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Chat failed");
+      }
 
-      const { reply } = await response.json();
+      const reply = data.reply || "No response received";
 
       const assistantMessage: Message = {
         id: generateId(),
@@ -106,8 +109,12 @@ export default function ChatbotPage() {
         await incrementUserProfileField(user.uid, "aiUsageCount", 1);
         await refreshProfile();
       }
-    } catch {
-      toast.error("Failed to get response. Please try again.");
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : "Failed to get response. Please try again.";
+      toast.error(errorMsg);
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
     } finally {
       setLoading(false);

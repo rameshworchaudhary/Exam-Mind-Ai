@@ -4,36 +4,32 @@ import { generateAssignmentAnswer } from "@/services/ai";
 
 export async function POST(req: NextRequest) {
   try {
-    const { question, subject, uid } = await req.json();
+    const body = await req.json();
+    const { question, subject } = body;
 
     if (!question || !subject) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { success: false, error: "Question and subject are required to generate an assignment answer." },
         { status: 400 }
       );
     }
 
+    // RUN AI ASSIGNMENT GENERATOR (Powered by Groq)
     const result = await generateAssignmentAnswer(question, subject);
 
-    // Ensure sections always exists
-    const response = {
-      answer: result.answer || "",
-      wordCount: result.wordCount || 0,
-      sections: Array.isArray(result.sections) && result.sections.length > 0
-        ? result.sections
-        : [
-            {
-              heading: "Answer",
-              content: result.answer || "No answer generated",
-            },
-          ],
-    };
-
-    return NextResponse.json(response);
+    return NextResponse.json({
+      success: true,
+      answer: result.answer,
+      wordCount: result.wordCount,
+      sections: result.sections,
+      data: result,
+    });
   } catch (error) {
-    console.error("Assignment error:", error);
+    console.error("Generate assignment API error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to generate assignment answer";
     return NextResponse.json(
-      { error: "Generation failed" },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

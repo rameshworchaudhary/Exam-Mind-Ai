@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Brain, Chrome } from "lucide-react";
+import { Chrome } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { loginWithGoogle } from "@/firebase/auth";
 import { toast } from "sonner";
+import { Logo, LogoIcon } from "@/components/ui/Logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,25 +29,30 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background flex">
       {/* Left Panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-examind-900 via-examind-800 to-purple-900 relative overflow-hidden items-center justify-center">
+      <div className="hidden lg:flex lg:w-1/2 bg-[#050505] border-r border-border relative overflow-hidden items-center justify-center">
         <div className="absolute inset-0 bg-grid opacity-20" />
-        <div className="relative text-center px-12">
+        <div className="absolute -top-32 -left-32 w-80 h-80 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="relative text-center px-12 z-10 max-w-lg">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="w-20 h-20 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center mx-auto mb-8 border border-white/20">
-              <Brain className="w-10 h-10 text-white" />
+            <div className="w-24 h-24 rounded-3xl bg-[#0F0F10] p-3 mx-auto mb-8 border border-border shadow-2xl shadow-indigo-500/10 flex items-center justify-center">
+              <LogoIcon className="w-16 h-16" />
             </div>
-            <h2 className="text-4xl font-bold text-white mb-4">
-              ExamMind AI
-            </h2>
-            <p className="text-white/70 text-lg max-w-md">
+            
+            <div className="flex justify-center mb-4">
+              <Logo size="xl" showTagline />
+            </div>
+
+            <p className="text-muted-foreground text-base max-w-md mx-auto mt-4 leading-relaxed">
               Your AI-powered study companion. Analyze syllabi, predict
               questions, generate notes, and ace your exams.
             </p>
-            <div className="mt-12 grid grid-cols-2 gap-4 text-left">
+            <div className="mt-10 grid grid-cols-2 gap-3 text-left">
               {[
                 { emoji: "🧠", text: "AI Syllabus Analysis" },
                 { emoji: "📊", text: "PYQ Predictions" },
@@ -55,10 +61,10 @@ export default function LoginPage() {
               ].map((item) => (
                 <div
                   key={item.text}
-                  className="flex items-center gap-3 bg-white/5 rounded-xl p-3 border border-white/10"
+                  className="flex items-center gap-3 bg-[#0F0F10] rounded-xl p-3 border border-border/80"
                 >
-                  <span className="text-2xl">{item.emoji}</span>
-                  <span className="text-white/80 text-sm font-medium">
+                  <span className="text-xl">{item.emoji}</span>
+                  <span className="text-foreground/90 text-xs font-medium">
                     {item.text}
                   </span>
                 </div>
@@ -76,14 +82,9 @@ export default function LoginPage() {
           transition={{ duration: 0.4 }}
           className="w-full max-w-md text-center"
         >
-          {/* Mobile Logo */}
-          <div className="flex items-center justify-center gap-2 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-examind-500 to-purple-600 flex items-center justify-center">
-              <Brain className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-bold text-2xl gradient-text">
-              ExamMind AI
-            </span>
+          {/* Logo */}
+          <div className="flex items-center justify-center mb-8">
+            <Logo size="lg" href="/" />
           </div>
 
           <h1 className="text-3xl font-bold mb-2">Welcome!</h1>

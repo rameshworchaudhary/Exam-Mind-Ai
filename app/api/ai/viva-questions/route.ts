@@ -4,14 +4,31 @@ import { generateVivaQuestions } from "@/services/ai";
 
 export async function POST(req: NextRequest) {
   try {
-    const { subject, topic, uid } = await req.json();
-    if (!subject || !topic || !uid) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    const body = await req.json();
+    const { subject, topic } = body;
+
+    if (!subject || !topic) {
+      return NextResponse.json(
+        { success: false, error: "Subject and topic are required to generate viva questions." },
+        { status: 400 }
+      );
     }
+
+    // RUN VIVA QUESTIONS GENERATOR (Powered by Groq)
     const result = await generateVivaQuestions(subject, topic);
-    return NextResponse.json(result);
+
+    return NextResponse.json({
+      success: true,
+      questions: result.questions,
+      data: result,
+    });
   } catch (error) {
-    console.error("Viva question error:", error);
-    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+    console.error("Viva question API error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to generate viva questions";
+    return NextResponse.json(
+      { success: false, questions: [], error: errorMessage },
+      { status: 500 }
+    );
   }
 }

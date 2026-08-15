@@ -1,17 +1,69 @@
 // app/api/ai/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { chatWithAI } from "@/services/ai";
+import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, subject, uid } = await req.json();
-    if (!messages || !uid) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    const body = await req.json();
+    const { messages, subject, uid } = body;
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Please provide a valid conversation message." },
+        { status: 400 }
+      );
     }
+
+    // 1. CHECK DAILY CHAT LIMIT (35 messages per day)
+    if (uid) {
+      const limitCheck = await checkServerDailyUsage(uid, "chat");
+      if (!limitCheck.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Daily chat limit reached! You have reached your limit of ${limitCheck.limit} AI Chat messages for today. Please try again tomorrow.`,
+            limitReached: true,
+            current: limitCheck.current,
+            limit: limitCheck.limit,
+            remaining: limitCheck.remaining,
+          },
+          { status: 429 }
+        );
+      }
+    }
+
+    // 2. RUN AI CHAT (Powered by Groq)
     const reply = await chatWithAI(messages, subject);
-    return NextResponse.json({ reply });
+
+    // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
+    let usageInfo = null;
+    if (uid) {
+      usageInfo = await incrementServerDailyUsage(uid, "chat");
+    }
+
+    return NextResponse.json({
+      success: true,
+      reply,
+      data: { reply },
+      usage: usageInfo
+        ? {
+            current: usageInfo.chatCount,
+            limit: usageInfo.maxChat,
+            remaining: usageInfo.chatRemaining,
+          }
+        : undefined,
+    });
   } catch (error) {
-    console.error("Chat error:", error);
-    return NextResponse.json({ error: "Chat failed" }, { status: 500 });
+    console.error("AI Chat API error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "AI Chat request failed";
+    return NextResponse.json(
+      {
+        success: false,
+        error: errorMessage,
+      },
+      { status: 500 }
+    );
   }
 }

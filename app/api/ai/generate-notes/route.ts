@@ -4,33 +4,34 @@ import { generateNotes } from "@/services/ai";
 
 export async function POST(req: NextRequest) {
   try {
-    const { subject, topic, noteType, uid } = await req.json();
+    const body = await req.json();
+    const { subject, topic, noteType } = body;
 
     if (!subject || !topic) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { success: false, error: "Subject and topic are required to generate notes." },
         { status: 400 }
       );
     }
 
+    // RUN AI NOTES GENERATOR (Powered by Groq)
     const result = await generateNotes(topic, subject, noteType || "short");
 
-    // Ensure all fields exist
-    const response = {
-      title: result.title || `${topic} Notes`,
-      content: result.content || "No content generated",
-      keyPoints: Array.isArray(result.keyPoints) ? result.keyPoints : [],
-      formulas: Array.isArray(result.formulas) ? result.formulas : [],
-      definitions: result.definitions && typeof result.definitions === "object"
-        ? result.definitions
-        : {},
-    };
-
-    return NextResponse.json(response);
+    return NextResponse.json({
+      success: true,
+      title: result.title,
+      content: result.content,
+      keyPoints: result.keyPoints,
+      formulas: result.formulas,
+      definitions: result.definitions,
+      data: result,
+    });
   } catch (error) {
-    console.error("Notes error:", error);
+    console.error("Generate notes API error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to generate notes";
     return NextResponse.json(
-      { error: "Generation failed" },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

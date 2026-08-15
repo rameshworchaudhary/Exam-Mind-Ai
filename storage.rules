@@ -3,24 +3,37 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Syllabi - users can only access their own
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Syllabi - users can only access their own files (< 15MB)
     match /syllabi/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, delete: if isOwner(userId);
+      allow write: if isOwner(userId) && request.resource.size < 15 * 1024 * 1024;
     }
 
-    // PYQ papers
+    // PYQ papers - users can only access their own files (< 15MB)
     match /pyq/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, delete: if isOwner(userId);
+      allow write: if isOwner(userId) && request.resource.size < 15 * 1024 * 1024;
     }
 
-    // Assignments
+    // Assignments - users can only access their own files (< 15MB)
     match /assignments/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, delete: if isOwner(userId);
+      allow write: if isOwner(userId) && request.resource.size < 15 * 1024 * 1024;
     }
 
-    // Max file size 15MB
-    match /{allPaths=**} {
-      allow write: if request.auth != null && request.resource.size < 15 * 1024 * 1024;
+    // General user files - strictly scoped to owner's userId
+    match /users/{userId}/{allPaths=**} {
+      allow read, delete: if isOwner(userId);
+      allow write: if isOwner(userId) && request.resource.size < 15 * 1024 * 1024;
     }
   }
 }
+

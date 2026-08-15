@@ -1,0 +1,152 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with study metrics and plan state",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique identifier of the user" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "photoURL": { "type": "string", "description": "Avatar photo URL" },
+        "plan": { "type": "string", "description": "Subscription or free plan status" },
+        "studyStreak": { "type": "number", "description": "Current consecutive study days" },
+        "lastActiveDate": { "type": "string", "description": "ISO date string of last activity" },
+        "subjects": { "type": "array", "description": "Enrolled subjects" },
+        "aiUsageCount": { "type": "number", "description": "Lifetime AI actions performed" },
+        "examReadiness": { "type": "number", "description": "Readiness score percentage" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" }
+      },
+      "required": ["uid", "email"]
+    },
+    "DailyUsage": {
+      "title": "DailyUsage",
+      "description": "Tracks daily quota consumption for PDF processing and AI chat",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User UID" },
+        "date": { "type": "string", "description": "Date formatted YYYY-MM-DD" },
+        "pdfCount": { "type": "number", "description": "PDF operations used today (max 5)" },
+        "chatCount": { "type": "number", "description": "Chat messages used today (max 35)" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" }
+      },
+      "required": ["uid", "date"]
+    },
+    "Upload": {
+      "title": "Upload",
+      "description": "Stored user uploaded syllabus, PYQ, or study document records",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User UID who owns the upload" },
+        "type": { "type": "string", "description": "Type of upload: syllabus | pyq | assignment" },
+        "fileName": { "type": "string", "description": "Original file name" },
+        "fileUrl": { "type": "string", "description": "Download or preview URL" },
+        "subject": { "type": "string", "description": "Associated subject" },
+        "analysis": { "type": "object", "description": "Parsed AI analysis outcome" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "type", "fileName"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "AI-generated or user-saved study notes",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User UID" },
+        "subject": { "type": "string", "description": "Subject name" },
+        "topic": { "type": "string", "description": "Topic name" },
+        "type": { "type": "string", "description": "Type of note (short, long, revision, formulas, definitions)" },
+        "content": { "type": "string", "description": "Note markdown/text content" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "subject", "topic", "content"]
+    },
+    "Assignment": {
+      "title": "Assignment",
+      "description": "Generated handwritten assignment records",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User UID" },
+        "question": { "type": "string", "description": "Assignment prompt" },
+        "answer": { "type": "string", "description": "Assignment solution text" },
+        "subject": { "type": "string", "description": "Subject name" },
+        "pdfUrl": { "type": "string", "description": "Exported PDF URL" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "question", "answer"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Conversational record with ExamMind AI",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User UID" },
+        "sessionId": { "type": "string", "description": "Chat session ID" },
+        "role": { "type": "string", "description": "user or assistant" },
+        "content": { "type": "string", "description": "Message body" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "sessionId", "role", "content"]
+    },
+    "StudyPlan": {
+      "title": "StudyPlan",
+      "description": "Personalized study timetable and preparation schedule",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User UID" },
+        "examDate": { "type": "string", "description": "Target exam date" },
+        "subjects": { "type": "array", "description": "List of subjects" },
+        "preparationLevel": { "type": "string", "description": "Current readiness status" },
+        "plan": { "type": "object", "description": "Structured timetable data" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "examDate", "subjects"]
+    },
+    "Prediction": {
+      "title": "Prediction",
+      "description": "Exam performance or question paper trend prediction",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User UID" },
+        "type": { "type": "string", "description": "Prediction type: performance | pyq" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Individual user account metadata and progress"
+    },
+    "/dailyUsage/{usageId}": {
+      "schema": "DailyUsage",
+      "description": "User daily quota tracking for 5 PDFs and 35 Chat messages"
+    },
+    "/uploads/{uploadId}": {
+      "schema": "Upload",
+      "description": "Syllabus and PYQ uploads associated with a student"
+    },
+    "/notes/{noteId}": {
+      "schema": "Note",
+      "description": "Generated revision and topic notes"
+    },
+    "/assignments/{assignmentId}": {
+      "schema": "Assignment",
+      "description": "Saved handwritten student assignments"
+    },
+    "/chatHistory/{chatId}": {
+      "schema": "ChatMessage",
+      "description": "Messages exchanged with the AI chatbot"
+    },
+    "/studyPlans/{planId}": {
+      "schema": "StudyPlan",
+      "description": "User personalized study timetables"
+    },
+    "/predictions/{predId}": {
+      "schema": "Prediction",
+      "description": "Generated pass probability and question predictions"
+    }
+  }
+}

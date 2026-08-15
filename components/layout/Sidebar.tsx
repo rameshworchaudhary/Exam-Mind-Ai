@@ -16,7 +16,7 @@ import {
   Calendar,
   MessageSquare,
   BarChart3,
-  CreditCard,
+  Gauge,
   Settings,
   LogOut,
   Menu,
@@ -30,8 +30,8 @@ import { logout } from "@/firebase/auth";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/utils";
+import { Logo } from "@/components/ui/Logo";
 
 const navItems = [
   {
@@ -56,7 +56,7 @@ const navItems = [
   {
     group: "Account",
     items: [
-      { href: "/dashboard/billing", icon: CreditCard, label: "Billing" },
+      { href: "/dashboard/billing", icon: Gauge, label: "Usage & Limits" },
       { href: "/dashboard/settings", icon: Settings, label: "Settings" },
     ],
   },
@@ -81,24 +81,11 @@ export function Sidebar() {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-5 border-b border-sidebar-border">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-examind-500 to-purple-600 flex items-center justify-center shrink-0">
-          <Brain className="w-5 h-5 text-white" />
-        </div>
-        <div>
-          <span className="font-bold text-sidebar-foreground text-base">ExamMind AI</span>
-          <div className="flex items-center gap-1 mt-0.5">
-            {userProfile?.plan === "trial" ? (
-              <span className="badge-trial text-[10px] py-0">
-                <Sparkles className="w-2.5 h-2.5" /> Trial
-              </span>
-            ) : (
-              <span className="badge-pro text-[10px] py-0">
-                <Sparkles className="w-2.5 h-2.5" /> Pro
-              </span>
-            )}
-          </div>
-        </div>
+      <div className="flex items-center justify-between px-4 py-4 border-b border-sidebar-border">
+        <Logo size="md" href="/dashboard" />
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+          <Sparkles className="w-2.5 h-2.5" /> Free
+        </span>
       </div>
 
       {/* Navigation */}
@@ -141,7 +128,7 @@ export function Sidebar() {
         <div className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-sidebar-accent transition-colors">
           <Avatar className="w-8 h-8 shrink-0">
             <AvatarImage src={user?.photoURL || ""} />
-            <AvatarFallback className="bg-examind-600 text-white text-xs">
+            <AvatarFallback className="bg-indigo-600 text-white text-xs">
               {getInitials(userProfile?.displayName || user?.email || "U")}
             </AvatarFallback>
           </Avatar>

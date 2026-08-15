@@ -4,46 +4,49 @@ import { predictPerformance } from "@/services/ai";
 
 export async function POST(req: NextRequest) {
   try {
+    const body = await req.json();
     const {
       attendance,
       internalMarks,
       studyHours,
       syllabusCompletion,
       subjects,
-      uid,
-    } = await req.json();
+    } = body;
 
-    if (!subjects || subjects.length === 0) {
+    const validSubjects = Array.isArray(subjects) ? subjects.filter(Boolean) : [];
+    if (validSubjects.length === 0) {
       return NextResponse.json(
-        { error: "Add at least one subject" },
+        { success: false, error: "Please provide at least one subject to predict performance." },
         { status: 400 }
       );
     }
 
+    // RUN PERFORMANCE PREDICTOR (Powered by Groq)
     const result = await predictPerformance({
-      attendance,
-      internalMarks,
-      studyHours,
-      syllabusCompletion,
-      subjects,
+      attendance: Number(attendance) || 75,
+      internalMarks: Number(internalMarks) || 70,
+      studyHours: Number(studyHours) || 4,
+      syllabusCompletion: Number(syllabusCompletion) || 60,
+      subjects: validSubjects,
     });
 
-    // Ensure all arrays exist
-    const response = {
-      passProbability: result.passProbability || 0,
-      predictedMarks: result.predictedMarks || 0,
-      grade: result.grade || "N/A",
-      weakSubjects: Array.isArray(result.weakSubjects) ? result.weakSubjects : [],
-      strengths: Array.isArray(result.strengths) ? result.strengths : [],
-      recommendations: Array.isArray(result.recommendations) ? result.recommendations : [],
-      breakdown: Array.isArray(result.breakdown) ? result.breakdown : [],
-    };
-
-    return NextResponse.json(response);
+    return NextResponse.json({
+      success: true,
+      passProbability: result.passProbability,
+      predictedMarks: result.predictedMarks,
+      grade: result.grade,
+      weakSubjects: result.weakSubjects,
+      strengths: result.strengths,
+      recommendations: result.recommendations,
+      breakdown: result.breakdown,
+      data: result,
+    });
   } catch (error) {
-    console.error("Prediction error:", error);
+    console.error("Performance prediction API error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Performance prediction failed";
     return NextResponse.json(
-      { error: "Prediction failed" },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

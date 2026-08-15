@@ -1,117 +1,131 @@
 // app/api/ai/analyze-pyq/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { analyzePYQ } from "@/services/ai";
+import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
 import pdfParse from "pdf-parse";
 
 export const runtime = "nodejs";
-const API_TIMEOUT = 45000;
-
-async function withTimeout<T>(fn: () => Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    fn(),
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error("Timeout")), ms)
-    ),
-  ]);
-}
-
-async function extractText(req: NextRequest) {
-  const contentType = req.headers.get("content-type") || "";
-
-  if (contentType.includes("application/json")) {
-    const body = await req.json();
-    return {
-      text: body.text || "",
-      subject: body.subject || "General",
-      uid: body.uid || "",
-    };
-  }
-
-  if (contentType.includes("multipart/form-data")) {
-    const form = await req.formData();
-    const file = form.get("file") as File;
-    const subject = String(form.get("subject") || "General");
-    const uid = String(form.get("uid") || "");
-
-    if (!file) return { text: "", subject, uid };
-
-    let text = "";
-
-    try {
-      if (file.type === "application/pdf") {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const pdf = await pdfParse(buffer);
-        text = pdf.text || "";
-
-        // Binary/garbage check
-        const garbage = (text.match(/[^\x00-\x7F]/g) || []).length;
-        const totalChars = text.length;
-        const garbageRatio = totalChars > 0 ? garbage / totalChars : 1;
-
-        if (garbageRatio > 0.3 || text.startsWith("%PDF") || text.includes("endobj")) {
-          console.log("PDF is scanned or unreadable");
-          return { text: "", subject, uid };
-        }
-      } else {
-        text = await file.text();
-
-        // Text file binary check
-        if (text.startsWith("%PDF") || text.includes("endobj")) {
-          return { text: "", subject, uid };
-        }
-      }
-    } catch (e) {
-      console.error("File read error:", e);
-      return { text: "", subject, uid };
-    }
-
-    return {
-      text: text.replace(/\s+/g, " ").trim().slice(0, 3000),
-      subject,
-      uid,
-    };
-  }
-
-  return { text: "", subject: "General", uid: "" };
-}
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, subject, uid } = await withTimeout(
-      () => extractText(req),
-      5000
-    );
+    const contentType = req.headers.get("content-type") || "";
+    let text = "";
+    let subject = "General";
+    let uid = "";
 
-    // ✅ UID check
-    if (!uid) {
+    // 1. JSON REQUEST
+    if (contentType.includes("application/json")) {
+      const body = await req.json();
+      text = body?.text || "";
+      subject = body?.subject || "General";
+      uid = body?.uid || "";
+    }
+    // 2. FORM DATA REQUEST (PDF or TXT upload)
+    else if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      const file = formData.get("file") as File | null;
+      subject = (formData.get("subject") as string) || "General";
+      uid = (formData.get("uid") as string) || "";
+
+      if (!file) {
+        return NextResponse.json(
+          { success: false, error: "No file was uploaded. Please attach a PYQ file." },
+          { status: 400 }
+        );
+      }
+
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+
+      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        try {
+          const pdfData = await pdfParse(buffer);
+          text = pdfData?.text || "";
+
+          const nonAscii = (text.match(/[^\x00-\x7F]/g) || []).length;
+          const ratio = text.length > 0 ? nonAscii / text.length : 1;
+
+          if (
+            ratio > 0.45 ||
+            (text.trim().length < 25 && (text.startsWith("%PDF") || text.includes("endobj")))
+          ) {
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "This PDF appears to be an image-only scan or corrupted. Please upload a searchable/selectable text PDF or .txt file.",
+              },
+              { status: 400 }
+            );
+          }
+        } catch (pdfError) {
+          console.error("PDF parsing error in analyze-pyq:", pdfError);
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Failed to extract text from PDF. Please upload a valid text PDF or .txt file.",
+            },
+            { status: 400 }
+          );
+        }
+      } else {
+        text = buffer.toString("utf-8");
+      }
+    } else {
       return NextResponse.json(
-        { error: "Missing uid" },
+        { success: false, error: "Unsupported content type. Expected application/json or multipart/form-data." },
         { status: 400 }
       );
     }
 
-    // ✅ Text check — binary PDF detect
+    // 3. CHECK DAILY USAGE LIMIT (5 PDF/PYQ analyses per day)
+    if (uid) {
+      const limitCheck = await checkServerDailyUsage(uid, "pdf");
+      if (!limitCheck.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Daily limit reached! You have used all ${limitCheck.limit} PDF/PYQ analysis uploads for today. Please try again tomorrow.`,
+            limitReached: true,
+            current: limitCheck.current,
+            limit: limitCheck.limit,
+            remaining: limitCheck.remaining,
+          },
+          { status: 429 }
+        );
+      }
+    }
+
+    // 4. VALIDATE EXTRACTED TEXT
     if (!text || text.trim().length < 10) {
       return NextResponse.json(
-        {
-          error:
-            "This PDF is scanned or unreadable. Please upload a selectable PDF or .txt file.",
-        },
+        { success: false, error: "No readable question text found in the uploaded file." },
         { status: 400 }
       );
     }
 
-    console.log("Analyzing PYQ:", subject);
-    console.log("Text length:", text.length);
+    // 5. RUN AI ANALYSIS (Powered by NVIDIA Nemotron)
+    const result = await analyzePYQ(text.slice(0, 5000), subject);
 
-    const result = await withTimeout(
-      () => analyzePYQ(text, subject),
-      API_TIMEOUT
-    );
+    // 6. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
+    let usageInfo = null;
+    if (uid) {
+      usageInfo = await incrementServerDailyUsage(uid, "pdf");
+    }
 
-    return NextResponse.json({ success: true, ...result });
+    return NextResponse.json({
+      success: true,
+      repeatedQuestions: result.repeatedQuestions,
+      importantTopics: result.importantTopics,
+      predictions: result.predictions,
+      trends: result.trends,
+      data: result,
+      usage: usageInfo,
+    });
   } catch (error) {
-    console.error("PYQ error:", error);
+    console.error("PYQ analysis API error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to analyze PYQ questions";
     return NextResponse.json(
       {
         success: false,
@@ -119,7 +133,7 @@ export async function POST(req: NextRequest) {
         importantTopics: [],
         predictions: [],
         trends: [],
-        error: error instanceof Error ? error.message : "Failed",
+        error: errorMessage,
       },
       { status: 500 }
     );

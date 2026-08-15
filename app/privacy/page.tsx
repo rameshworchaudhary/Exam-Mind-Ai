@@ -1,17 +1,11 @@
 // app/privacy/page.tsx
-import Link from "next/link";
-import { Brain } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-background">
       <nav className="border-b border-border px-6 py-4 flex items-center gap-2">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-examind-500 to-purple-600 flex items-center justify-center">
-            <Brain className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-bold gradient-text">ExamMind AI</span>
-        </Link>
+        <Logo size="md" href="/" />
       </nav>
       <main className="max-w-3xl mx-auto px-6 py-12">
         <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>

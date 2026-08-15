@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Logo } from "@/components/ui/Logo";
 
 const features = [
   {
@@ -94,15 +95,10 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-examind-500 to-purple-600 flex items-center justify-center">
-                <Brain className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-xl gradient-text">ExamMind AI</span>
-            </div>
+            <Logo size="md" href="/" />
             <div className="hidden md:flex items-center gap-8">
               <Link href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</Link>
-              <Link href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</Link>
+              <Link href="#allowances" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Daily Quotas</Link>
               <Link href="#testimonials" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Reviews</Link>
             </div>
             <div className="flex items-center gap-3">
@@ -110,8 +106,8 @@ export default function LandingPage() {
                 <Button variant="ghost" size="sm">Sign In</Button>
               </Link>
               <Link href="/auth/register">
-                <Button size="sm" className="bg-examind-600 hover:bg-examind-700 text-white">
-                  Start Free Trial
+                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                  Get Started Free
                 </Button>
               </Link>
             </div>
@@ -169,16 +165,16 @@ export default function LandingPage() {
             <Link href="/auth/register">
               <Button
                 size="lg"
-                className="bg-examind-600 hover:bg-examind-700 text-white h-12 px-8 text-base glow-primary"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white h-12 px-8 text-base shadow-lg shadow-indigo-500/20"
               >
                 <Zap className="w-4 h-4 mr-2" />
-                Start Free —  Days Trial
+                Start Studying Free — No Card Needed
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
             <Link href="/auth/login">
               <Button variant="outline" size="lg" className="h-12 px-8 text-base">
-                View Demo
+                Sign In
               </Button>
             </Link>
           </motion.div>
@@ -189,8 +185,8 @@ export default function LandingPage() {
             transition={{ duration: 0.5, delay: 0.4 }}
             className="mt-4 text-sm text-muted-foreground"
           >
-            <Shield className="w-3 h-3 inline mr-1" />
-            Free for some days. Continue only if you like it.
+            <Shield className="w-3.5 h-3.5 inline mr-1 text-emerald-400" />
+            100% Free for students. 5 PDF analyses + 35 AI chats refreshed daily.
           </motion.p>
 
           {/* Stats */}
@@ -242,85 +238,85 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 px-4 bg-muted/30">
+      {/* Daily Quotas & Free Access Section */}
+      <section id="allowances" className="py-20 px-4 bg-muted/30">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
-            <p className="text-muted-foreground text-lg">Start free, No need to upgrade for sometime.</p>
+            <Badge className="mb-3 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              100% Free For All Students
+            </Badge>
+            <h2 className="text-4xl font-bold mb-4">Generous Daily AI Quotas</h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              Every feature is completely unlocked. Daily quotas automatically reset every 24 hours at midnight.
+            </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {/* Free Trial */}
-            <div className="bg-card border border-border rounded-2xl p-8">
-              <div className="badge-trial mb-4">Free Trial</div>
-              <div className="text-4xl font-bold mb-1">₹0</div>
-              <div className="text-muted-foreground text-sm mb-6">For someday days</div>
-              <ul className="space-y-3 mb-8">
-                {["5 AI requests/day", "Syllabus Analyzer", "Basic Notes", "AI Chatbot (unlimited)"].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link href="/auth/register">
-                <Button variant="outline" className="w-full">Get Started Free</Button>
-              </Link>
-            </div>
-
-            {/* Pro Monthly */}
-            <div className="bg-card border-2 border-examind-500 rounded-2xl p-8 relative">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-examind-600 text-white text-xs font-bold px-3 py-1 rounded-full">
-                MOST POPULAR
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            {/* PDF Analysis Quota Card */}
+            <div className="bg-card border border-border rounded-2xl p-8 relative space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                  <Brain className="w-6 h-6 text-indigo-400" />
+                </div>
+                <Badge variant="outline" className="text-xs border-indigo-500/30 text-indigo-400 bg-indigo-500/10">
+                  Resets Daily
+                </Badge>
               </div>
-              <div className="badge-pro mb-4">Pro Monthly</div>
-              <div className="text-4xl font-bold mb-1">₹0 for sometime</div>
-              <div className="text-muted-foreground text-sm mb-6">free per month</div>
-              <ul className="space-y-3 mb-8">
+              <div>
+                <div className="text-4xl font-extrabold tracking-tight">5 PDFs / Day</div>
+                <div className="text-muted-foreground text-sm mt-1">Syllabus & PYQ Paper Analysis</div>
+              </div>
+              <ul className="space-y-3 pt-2 border-t border-border">
                 {[
-                  "Unlimited AI requests",
-                  "All features unlocked",
-                  "Handwritten Assignments",
-                  "PYQ Predictions",
-                  "Study Planner",
-                  "Priority support",
+                  "Full unit & topic weightage extraction",
+                  "PYQ frequency & recurring question predictor",
+                  "AI trend analysis & exam probability scores",
+                  "Direct upload of PDF and TXT documents",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="w-4 h-4 text-examind-500 shrink-0" />
-                    {f}
+                    <CheckCircle className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span>{f}</span>
                   </li>
                 ))}
               </ul>
-              <Link href="/auth/register">
-                <Button className="w-full bg-examind-600 hover:bg-examind-700 text-white">
-                  Start Free Trial
+              <Link href="/auth/register" className="block pt-2">
+                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                  Try Syllabus Analyzer
                 </Button>
               </Link>
             </div>
 
-            {/* Pro Yearly */}
-            <div className="bg-card border border-border rounded-2xl p-8">
-              <div className="badge-pro mb-4">Pro Yearly</div>
-              <div className="text-4xl font-bold mb-1">₹0 for sometime</div>
-              <div className="text-muted-foreground text-sm mb-1">per year</div>
-              <div className="text-green-500 text-xs font-semibold mb-6">Save ₹0</div>
-              <ul className="space-y-3 mb-8">
+            {/* AI Chat Messages Quota Card */}
+            <div className="bg-card border border-border rounded-2xl p-8 relative space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                  <MessageSquare className="w-6 h-6 text-emerald-400" />
+                </div>
+                <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
+                  Resets Daily
+                </Badge>
+              </div>
+              <div>
+                <div className="text-4xl font-extrabold tracking-tight">35 Chats / Day</div>
+                <div className="text-muted-foreground text-sm mt-1">Interactive AI Tutor Queries</div>
+              </div>
+              <ul className="space-y-3 pt-2 border-t border-border">
                 {[
-                  "Everything in Pro Monthly",
-                  "Every months free for sometime",
-                  "Advanced analytics",
-                  "Export all as PDF",
-                  "Priority support",
+                  "Step-by-step doubt resolution & concept breakdown",
+                  "Subject-aware study assistance",
+                  "Notes generation & instant formulas",
+                  "Handwritten style assignment exports",
                 ].map((f) => (
                   <li key={f} className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="w-4 h-4 text-amber-500 shrink-0" />
-                    {f}
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{f}</span>
                   </li>
                 ))}
               </ul>
-              <Link href="/auth/register">
-                <Button variant="outline" className="w-full">Get Best Value</Button>
+              <Link href="/auth/register" className="block pt-2">
+                <Button variant="outline" className="w-full">
+                  Start Free Chat
+                </Button>
               </Link>
             </div>
           </div>
@@ -366,23 +362,49 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section className="py-20 px-4">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="bg-gradient-to-br from-examind-600 to-purple-700 rounded-3xl p-12 relative overflow-hidden">
-            <div className="absolute inset-0 bg-grid opacity-20" />
-            <div className="relative">
-              <h2 className="text-4xl font-bold text-white mb-4">
-                Ready to Ace Your Exams?
+        <div className="max-w-xl mx-auto text-center">
+          <div className="bg-[#050505] border border-[#1C1C20] rounded-3xl p-8 sm:p-12 relative overflow-hidden shadow-2xl shadow-black/80">
+            {/* Subtle ambient corner violet glows */}
+            <div className="absolute -top-24 -left-24 w-64 h-64 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-950/20 via-[#050505]/40 to-transparent pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col items-center">
+              {/* Heading */}
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight leading-[1.15] mb-3">
+                Ready to Ace
+                <span className="block text-white drop-shadow-[0_0_20px_rgba(99,102,241,0.35)]">
+                  Your Exams?
+                </span>
               </h2>
-              <p className="text-white/80 text-lg mb-8">
-                Join 5+ students already using ExamMind AI
+
+              {/* Subtle neon glow line beneath heading */}
+              <div className="w-40 h-[1px] bg-gradient-to-r from-transparent via-indigo-500/60 to-transparent blur-[0.5px] mb-6" />
+
+              {/* Subheading */}
+              <p className="text-[#D4D4D8] text-base sm:text-lg max-w-md mx-auto leading-relaxed mb-8">
+                Join students already scoring higher with ExamMind AI
               </p>
-              <Link href="/auth/register">
-                <Button size="lg" className="bg-white text-examind-700 hover:bg-white/90 h-12 px-8 text-base font-semibold">
-                  Start Your Free Trial Today
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </Link>
-              <p className="text-white/60 text-sm mt-4">No credit card required • for some days</p>
+
+              {/* Button */}
+              <div className="relative group w-full sm:w-auto">
+                <Link href="/auth/register" className="inline-block w-full sm:w-auto">
+                  <Button
+                    size="lg"
+                    className="w-full sm:w-auto h-14 px-8 bg-[#0F0F10] hover:bg-[#151518] text-white font-semibold text-base rounded-2xl border-2 border-indigo-500/60 hover:border-indigo-400 shadow-[0_0_24px_rgba(99,102,241,0.25)] hover:shadow-[0_0_35px_rgba(99,102,241,0.45)] transition-all duration-300"
+                  >
+                    Get Started for Free
+                    <ArrowRight className="w-4 h-4 ml-2.5 text-white group-hover:translate-x-0.5 transition-transform" />
+                  </Button>
+                </Link>
+                {/* Subtle bottom flare under button */}
+                <div className="w-28 h-[1px] bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent mx-auto mt-2 blur-[0.5px]" />
+              </div>
+
+              {/* Bottom text */}
+              <p className="text-[#A1A1AA] text-sm mt-4 tracking-normal">
+                No credit card required <span className="text-indigo-400/80 mx-1">•</span> Instant access
+              </p>
             </div>
           </div>
         </div>
@@ -391,12 +413,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-border py-8 px-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-examind-500 to-purple-600 flex items-center justify-center">
-              <Brain className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-bold gradient-text">ExamMind AI</span>
-          </div>
+          <Logo size="sm" href="/" showTagline />
           <p className="text-sm text-muted-foreground">
             © 2026 ExamMind AI. Built with ❤️ for students.
           </p>
