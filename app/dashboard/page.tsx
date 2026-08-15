@@ -134,43 +134,55 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* Stats Cards */}
-      <motion.div variants={itemVariants} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div variants={itemVariants} className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
         {[
           {
             icon: Flame,
             label: "Study Streak",
             value: `${streak} days`,
-            color: "text-orange-500",
-            bg: "bg-orange-50 dark:bg-orange-950/30",
+            color: "text-amber-400",
+            bg: "bg-amber-500/10 border-amber-500/20 shadow-amber-500/5",
+            badge: "Active",
           },
           {
             icon: FileText,
-            label: "Uploads",
+            label: "Total Uploads",
             value: uploads.length.toString(),
-            color: "text-blue-500",
-            bg: "bg-blue-50 dark:bg-blue-950/30",
+            color: "text-indigo-400",
+            bg: "bg-indigo-500/10 border-indigo-500/20 shadow-indigo-500/5",
+            badge: "Documents",
           },
           {
             icon: Brain,
-            label: "AI Requests",
+            label: "AI Queries",
             value: `${userProfile?.aiUsageCount || 0}`,
-            color: "text-examind-500",
-            bg: "bg-examind-50 dark:bg-examind-950/30",
+            color: "text-purple-400",
+            bg: "bg-purple-500/10 border-purple-500/20 shadow-purple-500/5",
+            badge: "Computed",
           },
           {
             icon: BookOpen,
             label: "Notes Created",
             value: notes.length.toString(),
-            color: "text-emerald-500",
-            bg: "bg-emerald-50 dark:bg-emerald-950/30",
+            color: "text-emerald-400",
+            bg: "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/5",
+            badge: "Saved",
           },
         ].map((stat) => (
-          <div key={stat.label} className="bg-card border border-border rounded-2xl p-5">
-            <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center mb-3`}>
-              <stat.icon className={`w-5 h-5 ${stat.color}`} />
+          <div
+            key={stat.label}
+            className="group relative bg-card border border-border/80 hover:border-border rounded-2xl p-4 sm:p-5 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className={`w-9 h-9 rounded-xl ${stat.bg} border shadow-xs flex items-center justify-center transition-transform duration-200 group-hover:scale-105`}>
+                <stat.icon className={`w-4.5 h-4.5 ${stat.color}`} />
+              </div>
+              <span className="text-[10px] uppercase font-semibold tracking-wider text-muted-foreground/70 bg-muted/40 px-2 py-0.5 rounded-md border border-border/40">
+                {stat.badge}
+              </span>
             </div>
-            <div className="text-2xl font-bold">{stat.value}</div>
-            <div className="text-sm text-muted-foreground">{stat.label}</div>
+            <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">{stat.value}</div>
+            <div className="text-xs font-medium text-muted-foreground mt-1">{stat.label}</div>
           </div>
         ))}
       </motion.div>
@@ -178,25 +190,29 @@ export default function DashboardPage() {
       {/* Charts Row */}
       <div className="grid lg:grid-cols-3 gap-4">
         {/* Weekly Study Activity */}
-        <motion.div variants={itemVariants} className="lg:col-span-2 bg-card border border-border rounded-2xl p-6">
-          <h3 className="font-semibold mb-4">Weekly Study Activity</h3>
-          <ResponsiveContainer width="100%" height={180}>
+        <motion.div variants={itemVariants} className="lg:col-span-2 bg-card border border-border/80 rounded-2xl p-5 sm:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-sm sm:text-base tracking-tight">Weekly Study Activity</h3>
+            <span className="text-xs text-muted-foreground">Hours studied</span>
+          </div>
+          <ResponsiveContainer width="100%" height={190}>
             <AreaChart data={weeklyData}>
               <defs>
                 <linearGradient id="studyGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-              <XAxis dataKey="day" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} unit="h" />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.4} />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} unit="h" />
               <Tooltip
                 contentStyle={{
                   background: "hsl(var(--card))",
                   border: "1px solid hsl(var(--border))",
-                  borderRadius: "12px",
+                  borderRadius: "10px",
                   fontSize: "12px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
                 }}
               />
               <Area
@@ -211,30 +227,32 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Exam Readiness */}
-        <motion.div variants={itemVariants} className="bg-card border border-border rounded-2xl p-6">
-          <h3 className="font-semibold mb-4">Exam Readiness</h3>
-          <div className="relative">
-            <ResponsiveContainer width="100%" height={160}>
-              <RadialBarChart
-                cx="50%"
-                cy="50%"
-                innerRadius="60%"
-                outerRadius="90%"
-                startAngle={180}
-                endAngle={0}
-                data={readinessData}
-              >
-                <RadialBar dataKey="value" cornerRadius={10} background={{ fill: "hsl(var(--muted))" }} />
-              </RadialBarChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex items-center justify-center flex-col">
-              <div className="text-3xl font-bold gradient-text">
-                {userProfile?.examReadiness ?? 65}%
+        <motion.div variants={itemVariants} className="bg-card border border-border/80 rounded-2xl p-5 sm:p-6 flex flex-col justify-between">
+          <div>
+            <h3 className="font-semibold text-sm sm:text-base tracking-tight mb-2">Exam Readiness</h3>
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={140}>
+                <RadialBarChart
+                  cx="50%"
+                  cy="50%"
+                  innerRadius="65%"
+                  outerRadius="95%"
+                  startAngle={180}
+                  endAngle={0}
+                  data={readinessData}
+                >
+                  <RadialBar dataKey="value" cornerRadius={10} background={{ fill: "hsl(var(--muted))" }} />
+                </RadialBarChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex items-center justify-center flex-col pt-2">
+                <div className="text-2xl sm:text-3xl font-bold gradient-text">
+                  {userProfile?.examReadiness ?? 65}%
+                </div>
+                <div className="text-[11px] text-muted-foreground">Ready Score</div>
               </div>
-              <div className="text-xs text-muted-foreground">Ready</div>
             </div>
           </div>
-          <div className="mt-4 space-y-2">
+          <div className="mt-2 space-y-2.5">
             {[
               { label: "Syllabus", value: 70 },
               { label: "Practice", value: 55 },
@@ -243,7 +261,7 @@ export default function DashboardPage() {
               <div key={item.label}>
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-muted-foreground">{item.label}</span>
-                  <span className="font-medium">{item.value}%</span>
+                  <span className="font-medium text-foreground">{item.value}%</span>
                 </div>
                 <div className="progress-bar">
                   <div className="progress-fill" style={{ width: `${item.value}%` }} />
@@ -256,22 +274,22 @@ export default function DashboardPage() {
 
       {/* Quick Actions */}
       <motion.div variants={itemVariants}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Quick Actions</h3>
-          <Sparkles className="w-4 h-4 text-examind-500" />
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-sm sm:text-base tracking-tight text-foreground">Quick Actions</h3>
+          <Sparkles className="w-4 h-4 text-indigo-400" />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {quickActions.map((action) => (
             <Link
               key={action.href}
               href={action.href}
-              className="group bg-card border border-border rounded-2xl p-4 hover:border-examind-500/50 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
+              className="group bg-card border border-border/80 rounded-2xl p-4 hover:border-indigo-500/40 hover:bg-muted/30 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
             >
-              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center mb-3`}>
-                <action.icon className="w-5 h-5 text-white" />
+              <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center mb-3 shadow-sm group-hover:scale-105 transition-transform duration-200`}>
+                <action.icon className="w-4.5 h-4.5 text-white" />
               </div>
-              <p className="font-medium text-sm">{action.label}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{action.desc}</p>
+              <p className="font-semibold text-xs sm:text-sm text-foreground group-hover:text-indigo-400 transition-colors">{action.label}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{action.desc}</p>
             </Link>
           ))}
         </div>
@@ -280,35 +298,35 @@ export default function DashboardPage() {
       {/* Recent Activity */}
       <div className="grid lg:grid-cols-2 gap-4">
         {/* Recent Uploads */}
-        <motion.div variants={itemVariants} className="bg-card border border-border rounded-2xl p-6">
+        <motion.div variants={itemVariants} className="bg-card border border-border/80 rounded-2xl p-5 sm:p-6 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Recent Uploads</h3>
-            <Link href="/dashboard/syllabus" className="text-xs text-examind-500 hover:underline flex items-center gap-1">
+            <h3 className="font-semibold text-sm sm:text-base tracking-tight text-foreground">Recent Uploads</h3>
+            <Link href="/dashboard/syllabus" className="text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           {uploads.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No uploads yet</p>
-              <Link href="/dashboard/syllabus" className="text-xs text-examind-500 hover:underline">
+            <div className="text-center py-8 text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-border/60">
+              <FileText className="w-8 h-8 mx-auto mb-2 opacity-30 text-indigo-400" />
+              <p className="text-xs font-medium">No uploads yet</p>
+              <Link href="/dashboard/syllabus" className="text-xs text-indigo-400 hover:underline mt-1 inline-block">
                 Upload your first syllabus →
               </Link>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {uploads.slice(0, 4).map((upload: unknown) => {
                 const u = upload as { id: string; fileName: string; type: string; createdAt?: { seconds?: number } };
                 return (
-                  <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
-                    <div className="w-9 h-9 rounded-lg bg-examind-100 dark:bg-examind-950 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4 text-examind-600" />
+                  <div key={u.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/50 hover:border-border/80 transition-colors">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4 text-indigo-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{u.fileName}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{u.type}</p>
+                      <p className="text-xs sm:text-sm font-medium text-foreground truncate">{u.fileName}</p>
+                      <p className="text-[11px] text-muted-foreground capitalize">{u.type}</p>
                     </div>
-                    <Clock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <Clock className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
                   </div>
                 );
               })}
@@ -317,55 +335,55 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Study Tips */}
-        <motion.div variants={itemVariants} className="bg-card border border-border rounded-2xl p-6">
+        <motion.div variants={itemVariants} className="bg-card border border-border/80 rounded-2xl p-5 sm:p-6 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Today's Focus</h3>
-            <Target className="w-4 h-4 text-examind-500" />
+            <h3 className="font-semibold text-sm sm:text-base tracking-tight text-foreground">Today's Focus</h3>
+            <Target className="w-4 h-4 text-indigo-400" />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {[
               {
                 icon: Brain,
                 title: "Upload your syllabus",
                 desc: "Get AI analysis and topic weightage",
-                color: "text-violet-500",
+                color: "text-violet-400",
                 href: "/dashboard/syllabus",
               },
               {
                 icon: TrendingUp,
                 title: "Analyze PYQ papers",
                 desc: "Predict likely exam questions",
-                color: "text-blue-500",
+                color: "text-indigo-400",
                 href: "/dashboard/pyq",
               },
               {
                 icon: BarChart3,
                 title: "Check exam readiness",
                 desc: "See your predicted performance",
-                color: "text-emerald-500",
+                color: "text-emerald-400",
                 href: "/dashboard/predictor",
               },
               {
                 icon: Calendar,
                 title: "Create study plan",
                 desc: "AI-generated daily schedule",
-                color: "text-amber-500",
+                color: "text-amber-400",
                 href: "/dashboard/planner",
               },
             ].map((tip) => (
               <Link
                 key={tip.href}
                 href={tip.href}
-                className="flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-colors group"
+                className="flex items-center gap-3 p-3 rounded-xl bg-muted/20 border border-border/40 hover:border-border hover:bg-muted/40 transition-all duration-150 group"
               >
-                <div className={`w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0`}>
+                <div className={`w-8 h-8 rounded-lg bg-muted/60 border border-border/60 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-150`}>
                   <tip.icon className={`w-4 h-4 ${tip.color}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{tip.title}</p>
-                  <p className="text-xs text-muted-foreground">{tip.desc}</p>
+                  <p className="text-xs sm:text-sm font-medium text-foreground group-hover:text-indigo-400 transition-colors">{tip.title}</p>
+                  <p className="text-[11px] text-muted-foreground">{tip.desc}</p>
                 </div>
-                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/60 group-hover:text-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
               </Link>
             ))}
           </div>

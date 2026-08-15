@@ -27,8 +27,10 @@
       "properties": {
         "uid": { "type": "string", "description": "User UID" },
         "date": { "type": "string", "description": "Date formatted YYYY-MM-DD" },
+        "analysisCount": { "type": "number", "description": "Analysis operations used today (max 5)" },
         "pdfCount": { "type": "number", "description": "PDF operations used today (max 5)" },
         "chatCount": { "type": "number", "description": "Chat messages used today (max 35)" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
         "updatedAt": { "type": "string", "description": "Last update timestamp" }
       },
       "required": ["uid", "date"]

@@ -16,13 +16,65 @@ import {
   getFirestore,
   runTransaction,
 } from "firebase/firestore";
-import app from "./config";
+import app, { auth } from "./config";
 
 export const db = getFirestore(app);
 
 // Daily limit constants
 export const DAILY_PDF_LIMIT = 5;
 export const DAILY_CHAT_LIMIT = 35;
+
+export enum OperationType {
+  CREATE = "create",
+  UPDATE = "update",
+  DELETE = "delete",
+  LIST = "list",
+  GET = "get",
+  WRITE = "write",
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error("Firestore Error:", JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 // =========================================
 // USER SERVICES
@@ -33,6 +85,7 @@ export async function updateUserProfile(
   data: Record<string, unknown>
 ) {
   if (!uid) return;
+  const path = `users/${uid}`;
   try {
     const userRef = doc(db, "users", uid);
     await updateDoc(userRef, { ...data, updatedAt: serverTimestamp() });
@@ -46,14 +99,19 @@ export async function incrementUserProfileField(
   field: string,
   value: number
 ) {
-  if (!uid) return;
+  if (!uid || uid === "anonymous") return;
+  const path = `users/${uid}`;
   try {
     const userRef = doc(db, "users", uid);
-    await updateDoc(userRef, {
-      [field]: increment(value),
-      lastActiveDate: new Date().toISOString(),
-      updatedAt: serverTimestamp(),
-    });
+    await setDoc(
+      userRef,
+      {
+        [field]: increment(value),
+        lastActiveDate: new Date().toISOString(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
   } catch (error) {
     console.error("Error incrementing user profile field:", error);
   }
@@ -61,6 +119,7 @@ export async function incrementUserProfileField(
 
 export async function getUserProfile(uid: string) {
   if (!uid) return null;
+  const path = `users/${uid}`;
   try {
     const userRef = doc(db, "users", uid);
     const snap = await getDoc(userRef);
@@ -76,11 +135,15 @@ export async function getUserProfile(uid: string) {
 // =========================================
 
 export interface DailyUsageData {
+  uid?: string;
   date: string;
+  analysisCount: number;
   pdfCount: number;
   chatCount: number;
+  maxAnalysis: number;
   maxPdf: number;
   maxChat: number;
+  analysisRemaining: number;
   pdfRemaining: number;
   chatRemaining: number;
 }
@@ -92,125 +155,77 @@ export function getTodayDateString(): string {
 
 export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
   const today = getTodayDateString();
+  if (!uid || uid === "anonymous") {
+    return {
+      uid: "anonymous",
+      date: today,
+      analysisCount: 0,
+      pdfCount: 0,
+      chatCount: 0,
+      maxAnalysis: DAILY_PDF_LIMIT,
+      maxPdf: DAILY_PDF_LIMIT,
+      maxChat: DAILY_CHAT_LIMIT,
+      analysisRemaining: DAILY_PDF_LIMIT,
+      pdfRemaining: DAILY_PDF_LIMIT,
+      chatRemaining: DAILY_CHAT_LIMIT,
+    };
+  }
+
   const docId = `${uid}_${today}`;
   const usageRef = doc(db, "dailyUsage", docId);
-  
+
   try {
     const snap = await getDoc(usageRef);
     if (snap.exists()) {
       const data = snap.data();
-      const pdfCount = typeof data.pdfCount === "number" ? data.pdfCount : 0;
+      const count =
+        typeof data.analysisCount === "number"
+          ? data.analysisCount
+          : typeof data.pdfCount === "number"
+          ? data.pdfCount
+          : 0;
       const chatCount = typeof data.chatCount === "number" ? data.chatCount : 0;
       return {
+        uid,
         date: today,
-        pdfCount,
+        analysisCount: count,
+        pdfCount: count,
         chatCount,
+        maxAnalysis: DAILY_PDF_LIMIT,
         maxPdf: DAILY_PDF_LIMIT,
         maxChat: DAILY_CHAT_LIMIT,
-        pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - pdfCount),
+        analysisRemaining: Math.max(0, DAILY_PDF_LIMIT - count),
+        pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - count),
         chatRemaining: Math.max(0, DAILY_CHAT_LIMIT - chatCount),
       };
     }
   } catch (error) {
-    console.error("Error fetching daily usage:", error);
+    // Client read may catch if doc does not exist yet; gracefully return empty initial quota
   }
 
   return {
+    uid,
     date: today,
+    analysisCount: 0,
     pdfCount: 0,
     chatCount: 0,
+    maxAnalysis: DAILY_PDF_LIMIT,
     maxPdf: DAILY_PDF_LIMIT,
     maxChat: DAILY_CHAT_LIMIT,
+    analysisRemaining: DAILY_PDF_LIMIT,
     pdfRemaining: DAILY_PDF_LIMIT,
     chatRemaining: DAILY_CHAT_LIMIT,
   };
 }
 
-export async function incrementDailyUsage(
-  uid: string,
-  type: "pdf" | "chat"
-): Promise<{ success: boolean; currentCount: number; limit: number; remaining: number }> {
-  const today = getTodayDateString();
-  const docId = `${uid}_${today}`;
-  const usageRef = doc(db, "dailyUsage", docId);
-  const maxLimit = type === "pdf" ? DAILY_PDF_LIMIT : DAILY_CHAT_LIMIT;
-  const field = type === "pdf" ? "pdfCount" : "chatCount";
-
-  try {
-    const result = await runTransaction(db, async (transaction) => {
-      const usageDoc = await transaction.get(usageRef);
-      let currentCount = 0;
-      let otherCount = 0;
-      const otherField = type === "pdf" ? "chatCount" : "pdfCount";
-
-      if (usageDoc.exists()) {
-        const data = usageDoc.data();
-        currentCount = typeof data[field] === "number" ? data[field] : 0;
-        otherCount = typeof data[otherField] === "number" ? data[otherField] : 0;
-      }
-
-      if (currentCount >= maxLimit) {
-        return {
-          success: false,
-          currentCount,
-          limit: maxLimit,
-          remaining: 0,
-        };
-      }
-
-      const nextCount = currentCount + 1;
-      transaction.set(
-        usageRef,
-        {
-          uid,
-          date: today,
-          [field]: nextCount,
-          [otherField]: otherCount,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      return {
-        success: true,
-        currentCount: nextCount,
-        limit: maxLimit,
-        remaining: Math.max(0, maxLimit - nextCount),
-      };
-    });
-
-    return result;
-  } catch (error) {
-    console.error("Transaction failed in incrementDailyUsage, using setDoc fallback:", error);
-    // Fallback using atomic setDoc with increment
-    await setDoc(
-      usageRef,
-      {
-        uid,
-        date: today,
-        [field]: increment(1),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-    const updated = await getDailyUsage(uid);
-    const count = type === "pdf" ? updated.pdfCount : updated.chatCount;
-    return {
-      success: count <= maxLimit,
-      currentCount: count,
-      limit: maxLimit,
-      remaining: Math.max(0, maxLimit - count),
-    };
-  }
-}
-
 export async function checkDailyUsageLimit(
   uid: string,
-  type: "pdf" | "chat"
+  type: "pdf" | "chat" | "analysis"
 ): Promise<{ allowed: boolean; current: number; limit: number; remaining: number }> {
   const usage = await getDailyUsage(uid);
-  const maxLimit = type === "pdf" ? DAILY_PDF_LIMIT : DAILY_CHAT_LIMIT;
-  const current = type === "pdf" ? usage.pdfCount : usage.chatCount;
+  const isChat = type === "chat";
+  const maxLimit = isChat ? DAILY_CHAT_LIMIT : DAILY_PDF_LIMIT;
+  const current = isChat ? usage.chatCount : usage.analysisCount;
   return {
     allowed: current < maxLimit,
     current,
@@ -234,6 +249,7 @@ export async function saveUpload(
   }
 ) {
   if (!uid) return null;
+  const path = "uploads";
   try {
     const ref = await addDoc(collection(db, "uploads"), {
       uid,
@@ -249,6 +265,7 @@ export async function saveUpload(
 
 export async function getUserUploads(uid: string) {
   if (!uid) return [];
+  const path = "uploads";
   try {
     const q = query(
       collection(db, "uploads"),
@@ -278,6 +295,7 @@ export async function saveNote(
   }
 ) {
   if (!uid) return null;
+  const path = "notes";
   try {
     const ref = await addDoc(collection(db, "notes"), {
       uid,
@@ -293,6 +311,7 @@ export async function saveNote(
 
 export async function getUserNotes(uid: string) {
   if (!uid) return [];
+  const path = "notes";
   try {
     const q = query(
       collection(db, "notes"),
@@ -322,6 +341,7 @@ export async function saveAssignment(
   }
 ) {
   if (!uid) return null;
+  const path = "assignments";
   try {
     const ref = await addDoc(collection(db, "assignments"), {
       uid,
@@ -337,6 +357,7 @@ export async function saveAssignment(
 
 export async function getUserAssignments(uid: string) {
   if (!uid) return [];
+  const path = "assignments";
   try {
     const q = query(
       collection(db, "assignments"),
@@ -365,6 +386,7 @@ export async function saveChatMessage(
   }
 ) {
   if (!uid) return null;
+  const path = "chatHistory";
   try {
     const ref = await addDoc(collection(db, "chatHistory"), {
       uid,
@@ -380,6 +402,7 @@ export async function saveChatMessage(
 
 export async function getChatHistory(uid: string, sessionId: string) {
   if (!uid) return [];
+  const path = "chatHistory";
   try {
     const q = query(
       collection(db, "chatHistory"),
@@ -410,6 +433,7 @@ export async function saveStudyPlan(
   }
 ) {
   if (!uid) return null;
+  const path = "studyPlans";
   try {
     const ref = await addDoc(collection(db, "studyPlans"), {
       uid,
@@ -425,6 +449,7 @@ export async function saveStudyPlan(
 
 export async function getUserStudyPlans(uid: string) {
   if (!uid) return [];
+  const path = "studyPlans";
   try {
     const q = query(
       collection(db, "studyPlans"),
@@ -449,6 +474,7 @@ export async function savePrediction(
   data: Record<string, unknown>
 ) {
   if (!uid) return null;
+  const path = "predictions";
   try {
     const ref = await addDoc(collection(db, "predictions"), {
       uid,
@@ -468,30 +494,36 @@ export async function savePrediction(
 
 export async function updateStudyStreak(uid: string) {
   const userRef = doc(db, "users", uid);
-  const userSnap = await getDoc(userRef);
+  const path = `users/${uid}`;
+  try {
+    const userSnap = await getDoc(userRef);
 
-  if (userSnap.exists()) {
-    const userData = userSnap.data();
-    const lastActive = new Date(userData.lastActiveDate || "");
-    const today = new Date();
-    const diffDays = Math.floor(
-      (today.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      const lastActive = new Date(userData.lastActiveDate || "");
+      const today = new Date();
+      const diffDays = Math.floor(
+        (today.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24)
+      );
 
-    let newStreak = userData.studyStreak || 0;
-    if (diffDays === 1) {
-      newStreak += 1;
-    } else if (diffDays > 1) {
-      newStreak = 1;
+      let newStreak = userData.studyStreak || 0;
+      if (diffDays === 1) {
+        newStreak += 1;
+      } else if (diffDays > 1) {
+        newStreak = 1;
+      }
+
+      await updateDoc(userRef, {
+        studyStreak: newStreak,
+        lastActiveDate: today.toISOString(),
+        updatedAt: serverTimestamp(),
+      });
+
+      return newStreak;
     }
-
-    await updateDoc(userRef, {
-      studyStreak: newStreak,
-      lastActiveDate: today.toISOString(),
-      updatedAt: serverTimestamp(),
-    });
-
-    return newStreak;
+  } catch (error) {
+    console.error("Error updating study streak:", error);
   }
   return 0;
 }
+

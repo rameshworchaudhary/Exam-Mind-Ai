@@ -49,10 +49,13 @@ interface AuthContextType {
 
 const defaultDailyUsage: DailyUsageData = {
   date: new Date().toISOString().split("T")[0],
+  analysisCount: 0,
   pdfCount: 0,
   chatCount: 0,
+  maxAnalysis: DAILY_PDF_LIMIT,
   maxPdf: DAILY_PDF_LIMIT,
   maxChat: DAILY_CHAT_LIMIT,
+  analysisRemaining: DAILY_PDF_LIMIT,
   pdfRemaining: DAILY_PDF_LIMIT,
   chatRemaining: DAILY_CHAT_LIMIT,
 };
@@ -80,6 +83,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) {
       try {
         const usage = await getDailyUsage(user.uid);
+        const apiRes = await fetch(`/api/user/usage?uid=${encodeURIComponent(user.uid)}`).catch(() => null);
+        if (apiRes && apiRes.ok) {
+          const apiData = await apiRes.json();
+          const apiUsage = apiData.data || apiData;
+          if (apiUsage && (typeof apiUsage.analysisCount === "number" || typeof apiUsage.pdfCount === "number")) {
+            const count = typeof apiUsage.analysisCount === "number" ? apiUsage.analysisCount : (apiUsage.pdfCount || 0);
+            const chatCount = typeof apiUsage.chatCount === "number" ? apiUsage.chatCount : (usage?.chatCount || 0);
+            setDailyUsage({
+              uid: user.uid,
+              date: apiUsage.date || usage.date,
+              analysisCount: count,
+              pdfCount: count,
+              chatCount,
+              maxAnalysis: DAILY_PDF_LIMIT,
+              maxPdf: DAILY_PDF_LIMIT,
+              maxChat: DAILY_CHAT_LIMIT,
+              analysisRemaining: Math.max(0, DAILY_PDF_LIMIT - count),
+              pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - count),
+              chatRemaining: Math.max(0, DAILY_CHAT_LIMIT - chatCount),
+            });
+            return;
+          }
+        }
         setDailyUsage(usage);
       } catch (err) {
         console.error("Failed to load daily usage:", err);

@@ -49,17 +49,30 @@ export default function AssignmentsPage() {
         }),
       });
 
-      if (!response.ok) throw new Error("Generation failed");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.error || "Generation failed");
+      }
 
-      const result: AssignmentData = await response.json();
-      setAssignment(result);
+      const result = await response.json();
+      const assignmentData: AssignmentData = {
+        answer: result.answer || result.data?.answer || "",
+        wordCount: result.wordCount || result.data?.wordCount || 0,
+        sections: Array.isArray(result.sections) && result.sections.length > 0
+          ? result.sections
+          : Array.isArray(result.data?.sections) && result.data.sections.length > 0
+          ? result.data.sections
+          : [{ heading: "Solution", content: result.answer || result.data?.answer || "" }],
+      };
+      setAssignment(assignmentData);
       if (user) {
         await incrementUserProfileField(user.uid, "aiUsageCount", 1);
         await refreshProfile();
       }
       toast.success("Assignment answer generated!");
-    } catch {
-      toast.error("Failed to generate assignment. Try again.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to generate assignment. Try again.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

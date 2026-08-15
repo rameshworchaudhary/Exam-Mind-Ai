@@ -17,49 +17,46 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // Daily Usage - user can read and track their own daily quota
+    // Daily Usage - user can read their own quota, only server (Admin SDK) can write/update/delete
     match /dailyUsage/{usageId} {
-      allow read, write: if isAuthenticated() && (
-        (resource != null && resource.data.uid == request.auth.uid) ||
-        (request.resource != null && request.resource.data.uid == request.auth.uid) ||
-        usageId.matches('^' + request.auth.uid + '_.*') ||
-        usageId.matches('^' + request.auth.uid + '$')
-      );
+      allow read: if request.auth != null
+        && resource.data.uid == request.auth.uid;
+      allow create, update, delete: if false;
     }
 
     // Uploads - users can only access their own
     match /uploads/{uploadId} {
-      allow read, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow get, list, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
     }
 
     // Notes
     match /notes/{noteId} {
-      allow read, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow get, list, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
     }
 
     // Assignments
     match /assignments/{assignmentId} {
-      allow read, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow get, list, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
     }
 
     // Chat history
     match /chatHistory/{chatId} {
-      allow read, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow get, list, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
     }
 
     // Study plans
     match /studyPlans/{planId} {
-      allow read, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow get, list, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
     }
 
     // Predictions
     match /predictions/{predId} {
-      allow read, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow get, list, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
     }
 
@@ -70,8 +67,9 @@ service cloud.firestore {
 
     // Payment logs - read only for user
     match /paymentLogs/{logId} {
-      allow read, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow get, list, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
     }
   }
 }
+
