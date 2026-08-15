@@ -171,6 +171,49 @@ export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
     };
   }
 
+  // 1. Fetch authoritative server-side usage from /api/user/usage if in browser
+  if (typeof window !== "undefined") {
+    try {
+      const res = await fetch(`/api/user/usage?uid=${encodeURIComponent(uid)}`, {
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data || json;
+        if (
+          data &&
+          (typeof data.analysisCount === "number" ||
+            typeof data.pdfCount === "number" ||
+            typeof data.chatCount === "number")
+        ) {
+          const analysisCount =
+            typeof data.analysisCount === "number"
+              ? data.analysisCount
+              : typeof data.pdfCount === "number"
+              ? data.pdfCount
+              : 0;
+          const chatCount = typeof data.chatCount === "number" ? data.chatCount : 0;
+          return {
+            uid,
+            date: data.date || today,
+            analysisCount,
+            pdfCount: analysisCount,
+            chatCount,
+            maxAnalysis: DAILY_PDF_LIMIT,
+            maxPdf: DAILY_PDF_LIMIT,
+            maxChat: DAILY_CHAT_LIMIT,
+            analysisRemaining: Math.max(0, DAILY_PDF_LIMIT - analysisCount),
+            pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - analysisCount),
+            chatRemaining: Math.max(0, DAILY_CHAT_LIMIT - chatCount),
+          };
+        }
+      }
+    } catch (apiErr) {
+      console.warn("Notice: unable to fetch daily usage via /api/user/usage:", apiErr);
+    }
+  }
+
+  // 2. Client Firestore fallback
   const docId = `${uid}_${today}`;
   const usageRef = doc(db, "dailyUsage", docId);
 

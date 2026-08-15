@@ -79,33 +79,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [emailVerified, setEmailVerified] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
-  const refreshDailyUsage = useCallback(async () => {
-    if (user) {
+  const refreshDailyUsage = useCallback(async (targetUid?: string) => {
+    const activeUid = targetUid || user?.uid;
+    if (activeUid) {
       try {
-        const usage = await getDailyUsage(user.uid);
-        const apiRes = await fetch(`/api/user/usage?uid=${encodeURIComponent(user.uid)}`).catch(() => null);
-        if (apiRes && apiRes.ok) {
-          const apiData = await apiRes.json();
-          const apiUsage = apiData.data || apiData;
-          if (apiUsage && (typeof apiUsage.analysisCount === "number" || typeof apiUsage.pdfCount === "number")) {
-            const count = typeof apiUsage.analysisCount === "number" ? apiUsage.analysisCount : (apiUsage.pdfCount || 0);
-            const chatCount = typeof apiUsage.chatCount === "number" ? apiUsage.chatCount : (usage?.chatCount || 0);
-            setDailyUsage({
-              uid: user.uid,
-              date: apiUsage.date || usage.date,
-              analysisCount: count,
-              pdfCount: count,
-              chatCount,
-              maxAnalysis: DAILY_PDF_LIMIT,
-              maxPdf: DAILY_PDF_LIMIT,
-              maxChat: DAILY_CHAT_LIMIT,
-              analysisRemaining: Math.max(0, DAILY_PDF_LIMIT - count),
-              pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - count),
-              chatRemaining: Math.max(0, DAILY_CHAT_LIMIT - chatCount),
-            });
-            return;
-          }
-        }
+        const usage = await getDailyUsage(activeUid);
         setDailyUsage(usage);
       } catch (err) {
         console.error("Failed to load daily usage:", err);
@@ -113,11 +91,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  const refreshProfile = useCallback(async () => {
-    if (user) {
-      const profile = await getUserProfile(user.uid);
+  const refreshProfile = useCallback(async (targetUid?: string) => {
+    const activeUid = targetUid || user?.uid;
+    if (activeUid) {
+      const profile = await getUserProfile(activeUid);
       setUserProfile(profile as unknown as UserProfile);
-      await refreshDailyUsage();
+      await refreshDailyUsage(activeUid);
     }
   }, [user, refreshDailyUsage]);
 

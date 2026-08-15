@@ -164,19 +164,6 @@ export async function incrementServerDailyUsage(
   const docId = `${uid}_${today}`;
   const isChat = type === "chat";
 
-  // Update in-memory state
-  let currentMemory = inMemoryStore.get(docId);
-  if (!currentMemory) {
-    currentMemory = { analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
-    inMemoryStore.set(docId, currentMemory);
-  }
-  if (isChat) {
-    currentMemory.chatCount += 1;
-  } else {
-    currentMemory.analysisCount += 1;
-  }
-  currentMemory.updatedAt = Date.now();
-
   // Persist atomically to Firestore via Firebase Admin SDK
   try {
     const adminDb = getAdminFirestore();
@@ -197,6 +184,12 @@ export async function incrementServerDailyUsage(
             updatedAt: FieldValue.serverTimestamp(),
           };
           transaction.set(docRef, newDoc);
+
+          inMemoryStore.set(docId, {
+            analysisCount: isChat ? 0 : 1,
+            chatCount: isChat ? 1 : 0,
+            updatedAt: Date.now(),
+          });
         } else {
           const data = snapshot.data() || {};
           const prevAnalysis =
@@ -207,20 +200,41 @@ export async function incrementServerDailyUsage(
               : 0;
           const prevChat = typeof data.chatCount === "number" ? data.chatCount : 0;
 
+          const nextChat = isChat ? prevChat + 1 : prevChat;
+          const nextAnalysis = isChat ? prevAnalysis : prevAnalysis + 1;
+
           if (isChat) {
             transaction.update(docRef, {
-              chatCount: prevChat + 1,
+              chatCount: nextChat,
               updatedAt: FieldValue.serverTimestamp(),
             });
           } else {
             transaction.update(docRef, {
-              analysisCount: prevAnalysis + 1,
-              pdfCount: prevAnalysis + 1,
+              analysisCount: nextAnalysis,
+              pdfCount: nextAnalysis,
               updatedAt: FieldValue.serverTimestamp(),
             });
           }
+
+          inMemoryStore.set(docId, {
+            analysisCount: nextAnalysis,
+            chatCount: nextChat,
+            updatedAt: Date.now(),
+          });
         }
       });
+    } else {
+      let currentMemory = inMemoryStore.get(docId);
+      if (!currentMemory) {
+        currentMemory = { analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
+        inMemoryStore.set(docId, currentMemory);
+      }
+      if (isChat) {
+        currentMemory.chatCount += 1;
+      } else {
+        currentMemory.analysisCount += 1;
+      }
+      currentMemory.updatedAt = Date.now();
     }
   } catch (error) {
     console.warn("Notice: Firestore transaction in Firebase Admin, using set fallback:", error);
@@ -243,6 +257,18 @@ export async function incrementServerDailyUsage(
     } catch (setErr) {
       console.warn("Could not write daily usage increment to Firestore via Admin SDK:", setErr);
     }
+
+    let currentMemory = inMemoryStore.get(docId);
+    if (!currentMemory) {
+      currentMemory = { analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
+      inMemoryStore.set(docId, currentMemory);
+    }
+    if (isChat) {
+      currentMemory.chatCount += 1;
+    } else {
+      currentMemory.analysisCount += 1;
+    }
+    currentMemory.updatedAt = Date.now();
   }
 
   return getServerDailyUsage(uid);
