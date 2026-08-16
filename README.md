@@ -1,4 +1,4 @@
-# ExamMind AI 🧠
+# PadhaiHub 🎓
 ### AI-Powered Student OS — Complete SaaS Platform
 
 ---

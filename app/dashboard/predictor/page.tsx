@@ -3,9 +3,8 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BarChart3, Sparkles, TrendingUp, AlertTriangle, CheckCircle, Plus, X } from "lucide-react";
+import { BarChart3, Sparkles, TrendingUp, AlertTriangle, CheckCircle2, Plus, X, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import { savePrediction, incrementUserProfileField } from "@/firebase/firestore";
 import { toast } from "sonner";
@@ -32,21 +31,35 @@ export default function PredictorPage() {
   const [loading, setLoading] = useState(false);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
 
-  const addSubject = () => { if (subjects.length < 6) setSubjects([...subjects, ""]); };
+  const addSubject = () => {
+    if (subjects.length < 6) setSubjects([...subjects, ""]);
+  };
   const removeSubject = (i: number) => setSubjects(subjects.filter((_, idx) => idx !== i));
   const updateSubject = (i: number, val: string) => {
-    const upd = [...subjects]; upd[i] = val; setSubjects(upd);
+    const upd = [...subjects];
+    upd[i] = val;
+    setSubjects(upd);
   };
 
   const handlePredict = async () => {
     const validSubs = subjects.filter(Boolean);
-    if (validSubs.length === 0) { toast.error("Add at least one subject"); return; }
+    if (validSubs.length === 0) {
+      toast.error("Add at least one subject");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/ai/predict-performance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attendance, internalMarks, studyHours, syllabusCompletion, subjects: validSubs, uid: user?.uid }),
+        body: JSON.stringify({
+          attendance,
+          internalMarks,
+          studyHours,
+          syllabusCompletion,
+          subjects: validSubs,
+          uid: user?.uid,
+        }),
       });
       if (!res.ok) throw new Error();
       const result: Prediction = await res.json();
@@ -67,40 +80,56 @@ export default function PredictorPage() {
   const radarData = prediction?.breakdown.map((b) => ({ factor: b.factor, score: b.score })) || [];
 
   const sliders = [
-    { label: "Attendance", value: attendance, setter: setAttendance, unit: "%", min: 0, max: 100, color: "bg-blue-500" },
-    { label: "Internal Marks", value: internalMarks, setter: setInternalMarks, unit: "/100", min: 0, max: 100, color: "bg-emerald-500" },
-    { label: "Daily Study Hours", value: studyHours, setter: setStudyHours, unit: "h", min: 0, max: 12, color: "bg-purple-500" },
-    { label: "Syllabus Completion", value: syllabusCompletion, setter: setSyllabusCompletion, unit: "%", min: 0, max: 100, color: "bg-amber-500" },
+    { label: "Attendance Record", value: attendance, setter: setAttendance, unit: "%", min: 0, max: 100, accent: "text-blue-400" },
+    { label: "Internal Assessments", value: internalMarks, setter: setInternalMarks, unit: "/100", min: 0, max: 100, accent: "text-emerald-400" },
+    { label: "Daily Study Allocation", value: studyHours, setter: setStudyHours, unit: " hrs", min: 0, max: 12, accent: "text-indigo-400" },
+    { label: "Syllabus Coverage", value: syllabusCompletion, setter: setSyllabusCompletion, unit: "%", min: 0, max: 100, accent: "text-amber-400" },
   ];
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Input */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-card border border-border rounded-2xl p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-            <BarChart3 className="w-5 h-5 text-white" />
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-card border border-border/80 rounded-xl p-5 sm:p-6"
+      >
+        <div className="flex items-center justify-between pb-4 mb-5 border-b border-border/60">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <BarChart3 className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-base tracking-tight text-foreground">Statistical Grade Predictor</h2>
+              <p className="text-xs text-muted-foreground">Estimate exam outcomes and pass probabilities using multivariable academic modelling</p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-semibold text-lg">Performance Predictor</h2>
-            <p className="text-sm text-muted-foreground">AI predicts your exam performance based on your inputs</p>
-          </div>
+          <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-0.5 rounded bg-muted/60 border border-border/50 hidden sm:inline">
+            Predictive Model
+          </span>
         </div>
 
         {/* Sliders */}
-        <div className="grid sm:grid-cols-2 gap-5 mb-6">
+        <div className="grid sm:grid-cols-2 gap-4 mb-6">
           {sliders.map((s) => (
-            <div key={s.label}>
+            <div key={s.label} className="p-3.5 rounded-lg border border-border/60 bg-muted/20">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium">{s.label}</label>
-                <span className={`text-sm font-bold ${s.color.replace("bg-", "text-")}`}>{s.value}{s.unit}</span>
+                <label className="text-xs font-medium text-foreground">{s.label}</label>
+                <span className={`text-xs font-mono font-bold ${s.accent}`}>
+                  {s.value}{s.unit}
+                </span>
               </div>
-              <input type="range" min={s.min} max={s.max} value={s.value}
+              <input
+                type="range"
+                min={s.min}
+                max={s.max}
+                value={s.value}
                 onChange={(e) => s.setter(Number(e.target.value))}
-                className={`w-full accent-examind-600`} />
-              <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                <span>{s.min}{s.unit}</span><span>{s.max}{s.unit}</span>
+                className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              />
+              <div className="flex justify-between text-[10px] font-mono text-muted-foreground mt-1.5">
+                <span>{s.min}{s.unit}</span>
+                <span>{s.max}{s.unit}</span>
               </div>
             </div>
           ))}
@@ -108,22 +137,35 @@ export default function PredictorPage() {
 
         {/* Subjects */}
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <label className="text-sm font-medium">Subjects</label>
-            <button onClick={addSubject} disabled={subjects.length >= 6}
-              className="flex items-center gap-1 text-xs text-examind-600 hover:underline disabled:opacity-40">
-              <Plus className="w-3 h-3" />Add
+          <div className="flex items-center justify-between mb-2.5">
+            <label className="text-xs font-medium text-foreground">Target Subject Modules (Max 6)</label>
+            <button
+              onClick={addSubject}
+              disabled={subjects.length >= 6}
+              className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-medium disabled:opacity-40 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Module
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
             {subjects.map((s, i) => (
-              <div key={i} className="flex items-center gap-1 bg-muted/50 border border-border rounded-lg pl-3 pr-1 py-1">
-                <input type="text" placeholder={`Subject ${i + 1}`} value={s}
+              <div
+                key={i}
+                className="flex items-center gap-1.5 bg-muted/30 border border-border/80 rounded-lg pl-3 pr-1.5 py-1 text-xs"
+              >
+                <input
+                  type="text"
+                  placeholder={`Subject ${i + 1}`}
+                  value={s}
                   onChange={(e) => updateSubject(i, e.target.value)}
-                  className="bg-transparent text-sm w-32 focus:outline-none" />
+                  className="bg-transparent text-xs text-foreground w-28 sm:w-36 focus:outline-none placeholder:text-muted-foreground/60"
+                />
                 {subjects.length > 1 && (
-                  <button onClick={() => removeSubject(i)} className="p-0.5 text-muted-foreground hover:text-destructive">
-                    <X className="w-3.5 h-3.5" />
+                  <button
+                    onClick={() => removeSubject(i)}
+                    className="p-1 text-muted-foreground hover:text-rose-400 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
                   </button>
                 )}
               </div>
@@ -131,14 +173,21 @@ export default function PredictorPage() {
           </div>
         </div>
 
-        <Button onClick={handlePredict} disabled={loading}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-11">
+        <Button
+          onClick={handlePredict}
+          disabled={loading}
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-medium h-10 rounded-lg transition-colors"
+        >
           {loading ? (
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Predicting...
+              <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Calculating Model Outcomes...</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2"><Sparkles className="w-4 h-4" />Predict My Performance</div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Run Statistical Performance Forecast</span>
+            </div>
           )}
         </Button>
       </motion.div>
@@ -146,77 +195,122 @@ export default function PredictorPage() {
       {/* Results */}
       <AnimatePresence>
         {prediction && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
             {/* Score Cards */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-card border border-border rounded-2xl p-5 text-center">
-                <div className={`text-4xl font-bold mb-1 ${getProbabilityColor(prediction.passProbability)}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div className="bg-card border border-border/80 rounded-xl p-4 sm:p-5">
+                <div className="flex items-center justify-between text-muted-foreground mb-2">
+                  <span className="text-[11px] font-mono uppercase tracking-wider">Pass Probability</span>
+                  <Activity className="w-3.5 h-3.5 text-muted-foreground" />
+                </div>
+                <div className={`text-3xl sm:text-4xl font-mono font-bold tracking-tight mb-2 ${getProbabilityColor(prediction.passProbability)}`}>
                   {prediction.passProbability}%
                 </div>
-                <p className="text-sm text-muted-foreground">Pass Probability</p>
-                <div className="progress-bar mt-3">
-                  <div className="progress-fill" style={{
-                    width: `${prediction.passProbability}%`,
-                    background: prediction.passProbability >= 70 ? "#22c55e" : prediction.passProbability >= 50 ? "#f59e0b" : "#ef4444"
-                  }} />
+                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${prediction.passProbability}%`,
+                      background:
+                        prediction.passProbability >= 70 ? "#10b981" : prediction.passProbability >= 50 ? "#f59e0b" : "#f43f5e",
+                    }}
+                  />
                 </div>
               </div>
-              <div className="bg-card border border-border rounded-2xl p-5 text-center">
-                <div className="text-4xl font-bold mb-1 text-blue-500">{prediction.predictedMarks}</div>
-                <p className="text-sm text-muted-foreground">Predicted Marks</p>
-                <p className="text-xs text-muted-foreground mt-1">out of 100</p>
+
+              <div className="bg-card border border-border/80 rounded-xl p-4 sm:p-5">
+                <div className="flex items-center justify-between text-muted-foreground mb-2">
+                  <span className="text-[11px] font-mono uppercase tracking-wider">Projected Marks</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">/ 100</span>
+                </div>
+                <div className="text-3xl sm:text-4xl font-mono font-bold tracking-tight text-blue-400 mb-1">
+                  {prediction.predictedMarks}
+                </div>
+                <p className="text-[11px] text-muted-foreground">Expected baseline score</p>
               </div>
-              <div className="bg-card border border-border rounded-2xl p-5 text-center">
-                <div className={`text-4xl font-bold mb-1 ${getGradeColor(prediction.grade)}`}>{prediction.grade}</div>
-                <p className="text-sm text-muted-foreground">Predicted Grade</p>
+
+              <div className="bg-card border border-border/80 rounded-xl p-4 sm:p-5">
+                <div className="flex items-center justify-between text-muted-foreground mb-2">
+                  <span className="text-[11px] font-mono uppercase tracking-wider">Projected Grade</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">ESTIMATE</span>
+                </div>
+                <div className={`text-3xl sm:text-4xl font-mono font-bold tracking-tight mb-1 ${getGradeColor(prediction.grade)}`}>
+                  {prediction.grade}
+                </div>
+                <p className="text-[11px] text-muted-foreground">Academic boundary tier</p>
               </div>
             </div>
 
             {/* Radar + Breakdown */}
             <div className="grid lg:grid-cols-2 gap-4">
               {/* Radar Chart */}
-              <div className="bg-card border border-border rounded-2xl p-6">
-                <h3 className="font-semibold mb-4">Performance Breakdown</h3>
-                <ResponsiveContainer width="100%" height={240}>
+              <div className="bg-card border border-border/80 rounded-xl p-5">
+                <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/60">
+                  <h3 className="font-semibold text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                    Preparedness Vectors
+                  </h3>
+                </div>
+                <ResponsiveContainer width="100%" height={230}>
                   <RadarChart data={radarData}>
-                    <PolarGrid />
-                    <PolarAngleAxis dataKey="factor" tick={{ fontSize: 11 }} />
-                    <Radar name="Score" dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.3} />
-                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", fontSize: "12px" }} />
+                    <PolarGrid stroke="rgba(255,255,255,0.08)" />
+                    <PolarAngleAxis dataKey="factor" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.6)" }} />
+                    <Radar name="Score" dataKey="score" stroke="#10b981" fill="#10b981" fillOpacity={0.25} />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#111113",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                        color: "#fff",
+                      }}
+                    />
                   </RadarChart>
                 </ResponsiveContainer>
               </div>
 
               {/* Strengths & Weaknesses */}
-              <div className="bg-card border border-border rounded-2xl p-6 space-y-5">
+              <div className="bg-card border border-border/80 rounded-xl p-5 space-y-4">
                 <div>
-                  <h4 className="text-sm font-semibold flex items-center gap-2 mb-3">
-                    <CheckCircle className="w-4 h-4 text-green-500" />Strengths
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-2.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Academic Strengths
                   </h4>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {prediction.strengths.map((s) => (
-                      <Badge key={s} className="bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400 border-green-200">{s}</Badge>
+                      <span
+                        key={s}
+                        className="text-xs px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium"
+                      >
+                        {s}
+                      </span>
                     ))}
                   </div>
                 </div>
+
                 <div>
-                  <h4 className="text-sm font-semibold flex items-center gap-2 mb-3">
-                    <AlertTriangle className="w-4 h-4 text-red-500" />Weak Areas
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-2.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> Vulnerable Dimensions
                   </h4>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {prediction.weakSubjects.map((s) => (
-                      <Badge key={s} className="bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400 border-red-200">{s}</Badge>
+                      <span
+                        key={s}
+                        className="text-xs px-2.5 py-1 rounded-md bg-rose-500/10 text-rose-400 border border-rose-500/20 font-medium"
+                      >
+                        {s}
+                      </span>
                     ))}
                   </div>
                 </div>
-                <div>
-                  <h4 className="text-sm font-semibold flex items-center gap-2 mb-3">
-                    <TrendingUp className="w-4 h-4 text-blue-500" />Recommendations
+
+                <div className="pt-2 border-t border-border/50">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-2">
+                    <TrendingUp className="w-3.5 h-3.5 text-blue-400" /> Strategic Next Steps
                   </h4>
-                  <ul className="space-y-2">
+                  <ul className="space-y-1.5">
                     {prediction.recommendations.map((rec, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                        <span className="text-examind-500 shrink-0 mt-0.5">→</span>{rec}
+                      <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                        <span className="text-emerald-400 font-mono">→</span>
+                        <span className="text-foreground/90">{rec}</span>
                       </li>
                     ))}
                   </ul>
@@ -225,20 +319,30 @@ export default function PredictorPage() {
             </div>
 
             {/* Factor breakdown */}
-            <div className="bg-card border border-border rounded-2xl p-6">
-              <h3 className="font-semibold mb-4">Factor Analysis</h3>
+            <div className="bg-card border border-border/80 rounded-xl p-5">
+              <h3 className="font-semibold text-xs font-mono uppercase tracking-wider text-muted-foreground mb-4">
+                Factor Weight Breakdown
+              </h3>
               <div className="space-y-3">
                 {prediction.breakdown.map((b, i) => (
                   <div key={i}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium">{b.factor}</span>
+                    <div className="flex items-center justify-between mb-1 text-xs">
+                      <span className="font-medium text-foreground">{b.factor}</span>
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">{b.impact} impact</Badge>
-                        <span className="text-sm font-bold">{b.score}/100</span>
+                        <span className="text-[10px] font-mono text-muted-foreground uppercase px-1.5 py-0.5 rounded bg-muted/40 border border-border/60">
+                          {b.impact} impact
+                        </span>
+                        <span className="font-mono font-bold text-foreground">{b.score}/100</span>
                       </div>
                     </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${b.score}%`, background: b.score >= 70 ? "#22c55e" : b.score >= 50 ? "#f59e0b" : "#ef4444" }} />
+                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${b.score}%`,
+                          background: b.score >= 70 ? "#10b981" : b.score >= 50 ? "#f59e0b" : "#f43f5e",
+                        }}
+                      />
                     </div>
                   </div>
                 ))}

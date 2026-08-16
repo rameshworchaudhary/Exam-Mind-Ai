@@ -696,7 +696,7 @@ export async function chatWithAI(
       messages: [
         {
           role: "system",
-          content: `You are ExamMind AI, an intelligent, empathetic, and highly capable academic study tutor.${
+          content: `You are PadhaiHub, an intelligent, empathetic, and highly capable academic study tutor.${
             subject ? ` Current subject context: ${subject}.` : ""
           } Provide accurate, encouraging, and easy-to-understand explanations with examples and structured formatting.`,
         },

@@ -12,101 +12,108 @@ import {
   Calendar,
   Star,
   ArrowRight,
-  CheckCircle,
+  CheckCircle2,
   Sparkles,
   Zap,
   Shield,
+  ArrowDown,
+  FileText,
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/ui/Logo";
 
 const features = [
   {
-    icon: Brain,
-    title: "Syllabus Analyzer",
-    description: "Upload your syllabus and get instant AI analysis with topic weightage and key areas.",
-    color: "from-violet-500 to-purple-600",
+    icon: FileText,
+    title: "Syllabus Breakdown",
+    description: "Upload your syllabus PDF. We break it into simple units, high-weight topics, and must-know concepts.",
   },
   {
     icon: TrendingUp,
-    title: "PYQ Predictions",
-    description: "Analyze previous year papers to predict most likely exam questions with probability scores.",
-    color: "from-blue-500 to-cyan-600",
+    title: "Past Exam Questions (PYQ)",
+    description: "Upload past question papers. Spot repeating questions and topics teachers ask every semester.",
   },
   {
     icon: BookOpen,
-    title: "AI Notes Generator",
-    description: "Generate short notes, long notes, revision points, formulas & definitions instantly.",
-    color: "from-emerald-500 to-teal-600",
+    title: "Clear Revision Notes",
+    description: "Get crisp summary points, key formulas, and short definitions that you can quickly read before your exam.",
   },
   {
     icon: PenTool,
-    title: "Handwritten Assignments",
-    description: "Convert AI answers into beautiful handwritten-style PDFs with ruled notebook paper.",
-    color: "from-amber-500 to-orange-600",
+    title: "Handwritten Assignment Maker",
+    description: "Turn typed answers into realistic notebook pages with blue ink and ruled lines, ready to print or submit.",
   },
   {
     icon: MessageSquare,
-    title: "AI Chatbot",
-    description: "ChatGPT-style assistant to explain concepts, solve doubts, and simplify topics.",
-    color: "from-pink-500 to-rose-600",
+    title: "Helpful Doubt Solver",
+    description: "Stuck on a tricky concept? Ask in plain words and get step-by-step answers without confusing jargon.",
   },
   {
     icon: Calendar,
-    title: "Study Planner",
-    description: "AI-generated daily study plans based on your exam date and preparation level.",
-    color: "from-indigo-500 to-blue-600",
+    title: "Realistic Study Planner",
+    description: "Tell us your exam date. We build a practical day-by-day timetable that you can actually finish.",
   },
 ];
 
 const stats = [
-  { value: "50+", label: "Students" },
-  { value: "98%", label: "Pass Rate" },
-  { value: "10+", label: "Notes Generated" },
-  { value: "4.9★", label: "App Rating" },
+  { value: "50+", label: "Happy Students" },
+  { value: "98%", label: "Exam Pass Rate" },
+  { value: "100+", label: "Notes Created" },
+  { value: "4.9 ★", label: "Student Rating" },
 ];
 
 const testimonials = [
   {
     name: "Ishwor Chaudhary",
     college: "Chandigarh University",
-    text: "ExamMind AI helped me predict 8 out of 10 exam questions correctly! The PYQ analysis is insane.",
-    avatar: "RC",
+    text: "PadhaiHub helped me spot 8 out of 10 questions that actually appeared in our final exam! The past paper tool is a lifesaver.",
+    avatar: "IC",
   },
   {
     name: "Rahul Chaudhary",
     college: "Chandigarh University",
-    text: "The handwritten assignment generator saved me hours. Professors can't even tell it's AI-generated!",
+    text: "The handwritten assignment maker saved my weekends. The notebook ruled paper looks completely genuine and neat.",
     avatar: "RC",
   },
   {
     name: "Rajkapoor Chaudhary",
-    college: "prokhara University Nepal",
-    text: "Study planner is a game changer. I went from failing to scoring 85% in just one semester.",
+    college: "Pokhara University Nepal",
+    text: "The study planner is so practical. Instead of making unrealistic 12-hour timetables, it gave me a simple daily plan that got me 85%.",
     avatar: "RC",
   },
 ];
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-background overflow-hidden">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-background text-foreground flex flex-col justify-between selection:bg-neutral-200 selection:text-black">
+      {/* Navigation matching Reference UI */}
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/80 bg-background/90 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <Logo size="md" href="/" />
-            <div className="hidden md:flex items-center gap-8">
-              <Link href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Features</Link>
-              <Link href="#allowances" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Daily Quotas</Link>
-              <Link href="#testimonials" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Reviews</Link>
+            <div className="flex items-center gap-8">
+              <Logo size="md" href="/" />
+              <div className="hidden md:flex items-center gap-6 text-xs font-medium text-muted-foreground">
+                <Link href="#features" className="hover:text-foreground transition-colors">Features</Link>
+                <Link href="#quotas" className="hover:text-foreground transition-colors">Daily Quotas</Link>
+                <Link href="#testimonials" className="hover:text-foreground transition-colors">Reviews</Link>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <Link href="/auth/login">
-                <Button variant="ghost" size="sm">Sign In</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg text-xs font-medium border-border/80 hover:bg-muted"
+                >
+                  Sign in
+                </Button>
               </Link>
-              <Link href="/auth/register">
-                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
+              <Link href="/auth/login">
+                <Button
+                  size="sm"
+                  className="bg-foreground text-background hover:opacity-90 rounded-lg text-xs font-medium px-4 shadow-sm"
+                >
                   Get Started Free
                 </Button>
               </Link>
@@ -116,90 +123,85 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-4">
-        {/* Background effects */}
-        <div className="absolute inset-0 bg-grid opacity-50" />
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-examind-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-40 left-20 w-[300px] h-[300px] bg-purple-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-40 right-20 w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-3xl" />
+      <section className="pt-32 sm:pt-36 pb-16 px-4 sm:px-6 relative">
+        <div className="max-w-4xl mx-auto text-center space-y-6">
+          {/* Friendly badge */}
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 border border-zinc-200 text-xs font-medium text-zinc-700 mx-auto">
+            <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Built for college students • 100% Free Daily Access</span>
+          </div>
 
-        <div className="relative max-w-5xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <Badge className="mb-6 bg-examind-50 text-examind-700 dark:bg-examind-950 dark:text-examind-300 border-examind-200 dark:border-examind-800">
-              <Sparkles className="w-3 h-3 mr-1" />
-              AI-Powered Student OS
-            </Badge>
-          </motion.div>
-
+          {/* Main Display Headline */}
           <motion.h1
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-5xl md:text-7xl font-bold tracking-tight mb-6"
+            transition={{ duration: 0.4 }}
+            className="text-4xl sm:text-6xl md:text-7xl font-bold tracking-tight text-foreground leading-[1.1]"
           >
-            Study Smarter,{" "}
-            <span className="gradient-text">Score Higher</span>
+            Study, revise and score higher{" "}
+            <span className="font-extrabold text-foreground underline decoration-indigo-500/40 decoration-wavy underline-offset-8">
+              without panic.
+            </span>
           </motion.h1>
 
+          {/* Subtitle */}
           <motion.p
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8"
+            transition={{ duration: 0.4, delay: 0.1 }}
+            className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed"
           >
-            ExamMind AI analyzes your syllabus, predicts exam questions, generates
-            AI notes, creates handwritten assignments, and plans your entire study
-            schedule — all powered by AI.
+            Turn your bulky syllabus and past question papers into clean revision summaries, predicted exam questions, realistic handwritten notes, and realistic daily study schedules.
           </motion.p>
 
+          {/* Dual Action Buttons */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center"
+            transition={{ duration: 0.4, delay: 0.15 }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2"
           >
-            <Link href="/auth/register">
+            <Link href="#features" className="w-full sm:w-auto">
               <Button
-                size="lg"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white h-12 px-8 text-base shadow-lg shadow-indigo-500/20"
+                variant="outline"
+                className="w-full sm:w-auto h-11 px-6 rounded-lg text-xs font-medium border-border hover:bg-muted text-foreground flex items-center justify-center gap-2"
               >
-                <Zap className="w-4 h-4 mr-2" />
-                Start Studying Free — No Card Needed
-                <ArrowRight className="w-4 h-4 ml-2" />
+                <span>See all tools</span>
+                <ArrowDown className="w-3.5 h-3.5" />
               </Button>
             </Link>
-            <Link href="/auth/login">
-              <Button variant="outline" size="lg" className="h-12 px-8 text-base">
-                Sign In
+            <Link href="/auth/login" className="w-full sm:w-auto">
+              <Button
+                className="w-full sm:w-auto h-11 px-6 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 shadow-sm flex items-center justify-center gap-2"
+              >
+                <span>Start Studying Free</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </Button>
             </Link>
           </motion.div>
 
+          {/* Value props subtitle */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="mt-4 text-sm text-muted-foreground"
+            transition={{ duration: 0.4, delay: 0.2 }}
+            className="text-xs text-muted-foreground flex items-center justify-center gap-2 pt-1"
           >
-            <Shield className="w-3.5 h-3.5 inline mr-1 text-emerald-400" />
-            100% Free for students. 5 PDF analyses + 35 AI chats refreshed daily.
+            <Shield className="w-3.5 h-3.5 text-emerald-500" />
+            <span>100% Free • 5 PDF uploads & 35 doubt questions daily • No credit card</span>
           </motion.p>
 
-          {/* Stats */}
+          {/* Stats Bar */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-16 pt-16 border-t border-border"
+            transition={{ duration: 0.4, delay: 0.25 }}
+            className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12 pt-8 border-t border-border/80 max-w-3xl mx-auto"
           >
             {stats.map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-3xl font-bold gradient-text">{stat.value}</div>
-                <div className="text-sm text-muted-foreground mt-1">{stat.label}</div>
+              <div key={stat.label} className="p-3 bg-card rounded-xl border border-border/70 text-center">
+                <div className="text-2xl font-bold font-mono text-foreground">{stat.value}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{stat.label}</div>
               </div>
             ))}
           </motion.div>
@@ -207,31 +209,32 @@ export default function LandingPage() {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Everything You Need to Excel</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              A complete AI toolkit designed specifically for students to maximize exam performance.
+      <section id="features" className="py-20 px-4 sm:px-6 border-t border-border/80 bg-muted/20">
+        <div className="max-w-6xl mx-auto space-y-12">
+          <div className="text-center max-w-2xl mx-auto space-y-2.5">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+              Everything you need for your semester exams
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+              No complicated tools or tech jargon. Just practical help for studying, making notes, and scoring marks.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {features.map((feature, i) => (
               <motion.div
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: i * 0.1 }}
-                className="feature-card group relative bg-card border border-border rounded-2xl p-6 overflow-hidden"
+                transition={{ duration: 0.3, delay: i * 0.05 }}
+                className="bg-card border border-border/80 rounded-xl p-5 space-y-3 hover:border-foreground/40 transition-colors shadow-xs"
               >
-                <div className={`absolute inset-0 bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-5 transition-opacity`} />
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-4`}>
-                  <feature.icon className="w-6 h-6 text-white" />
+                <div className="w-9 h-9 rounded-lg bg-foreground/5 border border-border/80 flex items-center justify-center">
+                  <feature.icon className="w-4 h-4 text-foreground" />
                 </div>
-                <h3 className="font-semibold text-lg mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground text-sm">{feature.description}</p>
+                <h3 className="font-semibold text-sm text-foreground">{feature.title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{feature.description}</p>
               </motion.div>
             ))}
           </div>
@@ -239,82 +242,84 @@ export default function LandingPage() {
       </section>
 
       {/* Daily Quotas & Free Access Section */}
-      <section id="allowances" className="py-20 px-4 bg-muted/30">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <Badge className="mb-3 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+      <section id="quotas" className="py-20 px-4 sm:px-6 border-t border-border/80">
+        <div className="max-w-5xl mx-auto space-y-12">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded">
               100% Free For All Students
-            </Badge>
-            <h2 className="text-4xl font-bold mb-4">Generous Daily AI Quotas</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Every feature is completely unlocked. Daily quotas automatically reset every 24 hours at midnight.
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground pt-1">
+              Generous Daily Free Quotas
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Every tool is unlocked. Your quotas refresh every single night at 12:00 AM automatically.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             {/* PDF Analysis Quota Card */}
-            <div className="bg-card border border-border rounded-2xl p-8 relative space-y-6">
+            <div className="bg-card border border-border/80 rounded-xl p-6 space-y-5 shadow-xs">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
-                  <Brain className="w-6 h-6 text-indigo-400" />
+                <div className="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-indigo-400" />
                 </div>
-                <Badge variant="outline" className="text-xs border-indigo-500/30 text-indigo-400 bg-indigo-500/10">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-border/80 text-muted-foreground">
                   Resets Daily
-                </Badge>
+                </span>
               </div>
               <div>
-                <div className="text-4xl font-extrabold tracking-tight">5 PDFs / Day</div>
-                <div className="text-muted-foreground text-sm mt-1">Syllabus & PYQ Paper Analysis</div>
+                <div className="text-3xl font-bold font-mono tracking-tight text-foreground">5 PDFs / Day</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Syllabus & PYQ Paper Analysis</div>
               </div>
-              <ul className="space-y-3 pt-2 border-t border-border">
+              <ul className="space-y-2.5 pt-2 border-t border-border/60">
                 {[
                   "Full unit & topic weightage extraction",
                   "PYQ frequency & recurring question predictor",
                   "AI trend analysis & exam probability scores",
                   "Direct upload of PDF and TXT documents",
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <li key={f} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                     <span>{f}</span>
                   </li>
                 ))}
               </ul>
-              <Link href="/auth/register" className="block pt-2">
-                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+              <Link href="/auth/login" className="block pt-2">
+                <Button className="w-full bg-foreground text-background hover:opacity-90 rounded-lg text-xs font-medium h-10">
                   Try Syllabus Analyzer
                 </Button>
               </Link>
             </div>
 
             {/* AI Chat Messages Quota Card */}
-            <div className="bg-card border border-border rounded-2xl p-8 relative space-y-6">
+            <div className="bg-card border border-border/80 rounded-xl p-6 space-y-5 shadow-xs">
               <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                  <MessageSquare className="w-6 h-6 text-emerald-400" />
+                <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                  <MessageSquare className="w-4 h-4 text-emerald-400" />
                 </div>
-                <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-border/80 text-muted-foreground">
                   Resets Daily
-                </Badge>
+                </span>
               </div>
               <div>
-                <div className="text-4xl font-extrabold tracking-tight">35 Chats / Day</div>
-                <div className="text-muted-foreground text-sm mt-1">Interactive AI Tutor Queries</div>
+                <div className="text-3xl font-bold font-mono tracking-tight text-foreground">35 Chats / Day</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Interactive AI Tutor Queries</div>
               </div>
-              <ul className="space-y-3 pt-2 border-t border-border">
+              <ul className="space-y-2.5 pt-2 border-t border-border/60">
                 {[
                   "Step-by-step doubt resolution & concept breakdown",
                   "Subject-aware study assistance",
                   "Notes generation & instant formulas",
                   "Handwritten style assignment exports",
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm">
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <li key={f} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span>{f}</span>
                   </li>
                 ))}
               </ul>
-              <Link href="/auth/register" className="block pt-2">
-                <Button variant="outline" className="w-full">
+              <Link href="/auth/login" className="block pt-2">
+                <Button variant="outline" className="w-full rounded-lg text-xs font-medium h-10 border-border/80 hover:bg-muted">
                   Start Free Chat
                 </Button>
               </Link>
@@ -323,35 +328,41 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section id="testimonials" className="py-20 px-4">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Loved by Students Across India and Nepal</h2>
+      {/* Reviews Section */}
+      <section id="testimonials" className="py-20 px-4 sm:px-6 border-t border-border/80 bg-muted/20">
+        <div className="max-w-5xl mx-auto space-y-12">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+              Loved by Students Across Universities
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Real feedback from learners using PadhaiHub every semester.
+            </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
+
+          <div className="grid md:grid-cols-3 gap-5">
             {testimonials.map((t, i) => (
               <motion.div
                 key={t.name}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: i * 0.1 }}
-                className="bg-card border border-border rounded-2xl p-6"
+                transition={{ duration: 0.3, delay: i * 0.05 }}
+                className="bg-card border border-border/80 rounded-xl p-5 space-y-3 shadow-xs"
               >
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                <div className="flex items-center gap-0.5">
+                  {[...Array(5)].map((_, idx) => (
+                    <Star key={idx} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                   ))}
                 </div>
-                <p className="text-sm text-muted-foreground mb-4">"{t.text}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-examind-600 flex items-center justify-center text-white text-sm font-bold">
+                <p className="text-xs text-muted-foreground leading-relaxed">&ldquo;{t.text}&rdquo;</p>
+                <div className="flex items-center gap-2.5 pt-1 border-t border-border/60">
+                  <div className="w-7 h-7 rounded-full bg-foreground text-background flex items-center justify-center text-[10px] font-bold">
                     {t.avatar}
                   </div>
                   <div>
-                    <div className="font-semibold text-sm">{t.name}</div>
-                    <div className="text-xs text-muted-foreground">{t.college}</div>
+                    <div className="font-semibold text-xs text-foreground">{t.name}</div>
+                    <div className="text-[11px] text-muted-foreground">{t.college}</div>
                   </div>
                 </div>
               </motion.div>
@@ -360,68 +371,49 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-20 px-4">
-        <div className="max-w-xl mx-auto text-center">
-          <div className="bg-[#050505] border border-[#1C1C20] rounded-3xl p-8 sm:p-12 relative overflow-hidden shadow-2xl shadow-black/80">
-            {/* Subtle ambient corner violet glows */}
-            <div className="absolute -top-24 -left-24 w-64 h-64 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-950/20 via-[#050505]/40 to-transparent pointer-events-none" />
-
-            <div className="relative z-10 flex flex-col items-center">
-              {/* Heading */}
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight leading-[1.15] mb-3">
-                Ready to Ace
-                <span className="block text-white drop-shadow-[0_0_20px_rgba(99,102,241,0.35)]">
-                  Your Exams?
-                </span>
-              </h2>
-
-              {/* Subtle neon glow line beneath heading */}
-              <div className="w-40 h-[1px] bg-gradient-to-r from-transparent via-indigo-500/60 to-transparent blur-[0.5px] mb-6" />
-
-              {/* Subheading */}
-              <p className="text-[#D4D4D8] text-base sm:text-lg max-w-md mx-auto leading-relaxed mb-8">
-                Join students already scoring higher with ExamMind AI
-              </p>
-
-              {/* Button */}
-              <div className="relative group w-full sm:w-auto">
-                <Link href="/auth/register" className="inline-block w-full sm:w-auto">
-                  <Button
-                    size="lg"
-                    className="w-full sm:w-auto h-14 px-8 bg-[#0F0F10] hover:bg-[#151518] text-white font-semibold text-base rounded-2xl border-2 border-indigo-500/60 hover:border-indigo-400 shadow-[0_0_24px_rgba(99,102,241,0.25)] hover:shadow-[0_0_35px_rgba(99,102,241,0.45)] transition-all duration-300"
-                  >
-                    Get Started for Free
-                    <ArrowRight className="w-4 h-4 ml-2.5 text-white group-hover:translate-x-0.5 transition-transform" />
-                  </Button>
-                </Link>
-                {/* Subtle bottom flare under button */}
-                <div className="w-28 h-[1px] bg-gradient-to-r from-transparent via-indigo-500/50 to-transparent mx-auto mt-2 blur-[0.5px]" />
-              </div>
-
-              {/* Bottom text */}
-              <p className="text-[#A1A1AA] text-sm mt-4 tracking-normal">
-                No credit card required <span className="text-indigo-400/80 mx-1">•</span> Instant access
-              </p>
-            </div>
+      {/* CTA Box matching Reference UI */}
+      <section className="py-20 px-4 sm:px-6 border-t border-border/80">
+        <div className="max-w-3xl mx-auto text-center space-y-6 bg-card border border-border/80 rounded-2xl p-8 sm:p-12 shadow-sm">
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+            Ready to ace your exams?
+          </h2>
+          <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
+            Join thousands of students scoring higher and preparing smarter with PadhaiHub.
+          </p>
+          <div className="pt-2">
+            <Link href="/auth/login">
+              <Button
+                size="lg"
+                className="h-11 px-7 rounded-lg text-xs font-medium bg-foreground text-background hover:opacity-90 shadow-sm"
+              >
+                Start Studying for Free
+              </Button>
+            </Link>
           </div>
+          <p className="text-[11px] font-mono text-muted-foreground">
+            No credit card required • Instant access
+          </p>
         </div>
       </section>
 
+      {/* Minimalist Cookie / Status Strip matching Reference Image Bottom Bar */}
+      <div className="border-t border-border/80 bg-background px-4 sm:px-6 py-3 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-3">
+        <p className="text-[11px]">
+          We use local session state to improve your study experience and track your daily usage.
+        </p>
+        <div className="flex items-center gap-3">
+          <Link href="/privacy" className="text-[11px] hover:text-foreground underline">Privacy</Link>
+          <Link href="/terms" className="text-[11px] hover:text-foreground underline">Terms</Link>
+        </div>
+      </div>
+
       {/* Footer */}
-      <footer className="border-t border-border py-8 px-4">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <footer className="border-t border-border/80 py-6 px-4 sm:px-6 bg-card">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <Logo size="sm" href="/" showTagline />
-          <p className="text-sm text-muted-foreground">
-            © 2026 ExamMind AI. Built with ❤️ for students.
+          <p className="text-xs text-muted-foreground">
+            © {new Date().getFullYear()} PadhaiHub. All rights reserved. Built for students.
           </p>
-          <div className="flex gap-4 text-sm text-muted-foreground">
-            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
-            <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
-            <Link href="/support" className="hover:text-foreground transition-colors">Support</Link>
-          </div>
         </div>
       </footer>
     </div>

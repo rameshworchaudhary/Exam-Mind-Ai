@@ -136,48 +136,68 @@ export default function SyllabusAnalyzerPage() {
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Upload Card */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-card border border-border rounded-2xl p-6"
+        className="bg-card border border-border/80 rounded-xl p-5 sm:p-6"
       >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-            <Brain className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between pb-4 mb-5 border-b border-border/60">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+              <FileText className="w-4 h-4 text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-base tracking-tight text-foreground">Syllabus Breakdown</h2>
+              <p className="text-xs text-muted-foreground">Upload your syllabus to see units, chapter marks, and high-weight topics</p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-semibold text-lg">Syllabus Analyzer</h2>
-            <p className="text-sm text-muted-foreground">Upload syllabus for AI analysis</p>
-          </div>
+          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground px-2 py-0.5 rounded bg-muted/60 border border-border/50 hidden sm:inline">
+            PDF • TXT
+          </span>
         </div>
 
-        {/* Subject */}
+        {/* Subject Input */}
         <div className="mb-4">
-          <label className="text-sm font-medium mb-2 block">Subject Name</label>
-          <input type="text" placeholder="e.g. Mathematics"
-            value={subject} onChange={(e) => setSubject(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl border border-border bg-muted/50 text-sm focus:outline-none focus:ring-2 focus:ring-examind-500" />
+          <label className="text-xs font-medium text-foreground mb-1.5 block">
+            Subject or Course Name <span className="text-muted-foreground font-normal">(Optional)</span>
+          </label>
+          <input
+            type="text"
+            placeholder="e.g. Data Structures & Algorithms (Unit 1 to 5)"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            className="w-full px-3.5 py-2 rounded-lg border border-border/80 bg-muted/30 text-xs sm:text-sm text-foreground focus:outline-none focus:border-indigo-500 focus:bg-card transition-colors placeholder:text-muted-foreground/60"
+          />
         </div>
 
         {/* Upload Zone */}
-        <div onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}
+        <div
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
           onClick={() => fileRef.current?.click()}
-          className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
-            file ? "border-examind-500 bg-examind-50/50 dark:bg-examind-950/20" : "border-border hover:border-examind-400 hover:bg-muted/30"
-          }`}>
+          className={`border border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-all ${
+            file
+              ? "border-indigo-500/60 bg-indigo-500/5"
+              : "border-border/80 hover:border-indigo-500/40 hover:bg-muted/20"
+          }`}
+        >
           <input ref={fileRef} type="file" accept=".pdf,.txt" className="hidden" onChange={handleFileSelect} />
           {file ? (
             <div className="flex items-center justify-center gap-3">
-              <CheckCircle className="w-6 h-6 text-green-500" />
+              <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+              </div>
               <div className="text-left">
-                <p className="font-medium text-sm">{file.name}</p>
-                <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB · Click to change</p>
+                <p className="font-medium text-xs sm:text-sm text-foreground">{file.name}</p>
+                <p className="text-[11px] text-muted-foreground">{(file.size / 1024).toFixed(1)} KB • Click to choose a different file</p>
               </div>
             </div>
           ) : (
             <div>
-              <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="font-medium mb-1">Drop syllabus PDF here</p>
-              <p className="text-sm text-muted-foreground">or click to browse • PDF, TXT up to 10MB</p>
+              <div className="w-10 h-10 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center mx-auto mb-2.5">
+                <Upload className="w-4 h-4 text-zinc-600" />
+              </div>
+              <p className="font-medium text-xs sm:text-sm text-foreground mb-0.5">Drop your syllabus file here</p>
+              <p className="text-[11px] text-muted-foreground">or click to browse from your device • PDF or TXT up to 10MB</p>
             </div>
           )}
         </div>
@@ -185,26 +205,30 @@ export default function SyllabusAnalyzerPage() {
         {/* Progress */}
         {loading && (
           <div className="mt-4 space-y-2">
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">
-                {progress < 40 ? "Reading file..." : progress < 70 ? "Analyzing with AI..." : progress < 90 ? "Processing results..." : "Done!"}
+                {progress < 40 ? "Reading syllabus text..." : progress < 70 ? "Finding units and chapter topics..." : progress < 90 ? "Calculating topic marks & weightage..." : "Almost ready..."}
               </span>
-              <span className="font-medium">{progress}%</span>
+              <span className="font-medium text-indigo-600">{progress}%</span>
             </div>
-            <Progress value={progress} className="h-2" />
+            <Progress value={progress} className="h-1.5" />
           </div>
         )}
 
-        <Button onClick={handleAnalyze} disabled={!file || loading}
-          className="mt-4 w-full bg-examind-600 hover:bg-examind-700 text-white h-11">
+        <Button
+          onClick={handleAnalyze}
+          disabled={!file || loading}
+          className="mt-4 w-full bg-zinc-900 hover:bg-zinc-800 text-white text-xs sm:text-sm font-medium h-10 rounded-lg transition-colors"
+        >
           {loading ? (
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Analyzing...
+              <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Analyzing Syllabus...</span>
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />Analyze with AI
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Break Down Syllabus</span>
             </div>
           )}
         </Button>
@@ -213,74 +237,114 @@ export default function SyllabusAnalyzerPage() {
       {/* Results */}
       <AnimatePresence>
         {analysis && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
             {/* Summary */}
-            <div className="bg-card border border-border rounded-2xl p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-examind-500" />Syllabus Summary
+            <div className="bg-card border border-border/80 rounded-xl p-5 sm:p-6">
+              <div className="flex justify-between items-center pb-3 mb-3 border-b border-border/60">
+                <h3 className="font-semibold text-sm tracking-tight flex items-center gap-2 text-foreground">
+                  <FileText className="w-4 h-4 text-indigo-400" />
+                  Executive Summary
                 </h3>
-                <Badge variant="secondary">{analysis.totalTopics} Topics</Badge>
+                <span className="text-xs font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/50">
+                  {analysis.totalTopics} Topics Detected
+                </span>
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">{analysis.summary}</p>
-              <div className="mt-4">
-                <p className="text-sm font-medium mb-2">🔥 Important Topics</p>
-                <div className="flex flex-wrap gap-2">
-                  {analysis.importantTopics.map((topic) => (
-                    <Badge key={topic} className="bg-examind-50 text-examind-700 dark:bg-examind-950 dark:text-examind-300">
-                      {topic}
-                    </Badge>
-                  ))}
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{analysis.summary}</p>
+              
+              {analysis.importantTopics?.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-border/50">
+                  <p className="text-xs font-medium text-foreground mb-2 flex items-center gap-1.5">
+                    <span className="text-amber-400">★</span> High-Yield Focus Topics
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {analysis.importantTopics.map((topic) => (
+                      <span
+                        key={topic}
+                        className="text-[11px] font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2 py-0.5 rounded-md"
+                      >
+                        {topic}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Chart + Units */}
-            <div className="grid lg:grid-cols-2 gap-4">
-              <div className="bg-card border border-border rounded-2xl p-6">
-                <h3 className="font-semibold mb-4">Weightage Distribution</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie data={chartData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="value">
-                      {chartData.map((_, index) => (
-                        <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => [`${value}%`, "Weightage"]}
-                      contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", fontSize: "12px" }} />
-                    <Legend wrapperStyle={{ fontSize: "12px" }} />
-                  </PieChart>
-                </ResponsiveContainer>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-card border border-border/80 rounded-xl p-5 flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm tracking-tight text-foreground">Weightage Distribution</h3>
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase">Estimated %</span>
+                </div>
+                <div className="h-60 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={85}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {chartData.map((_, index) => (
+                          <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value) => [`${value}%`, "Weightage"]}
+                        contentStyle={{
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
 
-              <div className="bg-card border border-border rounded-2xl p-6">
-                <h3 className="font-semibold mb-4">Units Breakdown</h3>
-                <div className="space-y-3">
+              <div className="bg-card border border-border/80 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm tracking-tight text-foreground">Unit Breakdown</h3>
+                  <span className="text-xs font-mono text-muted-foreground">{analysis.units.length} Modules</span>
+                </div>
+                <div className="space-y-2">
                   {analysis.units.map((unit, i) => (
-                    <div key={i} className="border border-border rounded-xl overflow-hidden">
-                      <button onClick={() => setExpandedUnit(expandedUnit === i ? null : i)}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors">
-                        <div className="w-3 h-3 rounded-full shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
-                        <div className="flex-1 text-left">
-                          <p className="text-sm font-medium">{unit.name}</p>
+                    <div key={i} className="border border-border/70 rounded-lg overflow-hidden bg-muted/20">
+                      <button
+                        onClick={() => setExpandedUnit(expandedUnit === i ? null : i)}
+                        className="w-full flex items-center gap-3 p-2.5 hover:bg-muted/40 transition-colors text-left"
+                      >
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-foreground truncate">{unit.name}</p>
                           <div className="flex items-center gap-2 mt-1">
-                            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div className="h-full rounded-full" style={{ width: `${unit.weightage}%`, background: COLORS[i % COLORS.length] }} />
+                            <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{ width: `${unit.weightage}%`, background: COLORS[i % COLORS.length] }}
+                              />
                             </div>
-                            <span className="text-xs text-muted-foreground shrink-0">{unit.weightage}%</span>
+                            <span className="text-[10px] font-mono text-muted-foreground shrink-0">{unit.weightage}%</span>
                           </div>
                         </div>
-                        {expandedUnit === i ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
+                        {expandedUnit === i ? <ChevronUp className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
                       </button>
                       <AnimatePresence>
                         {expandedUnit === i && (
                           <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden">
-                            <div className="px-3 pb-3 border-t border-border bg-muted/30">
-                              <p className="text-xs font-medium text-muted-foreground mb-2 pt-2">Topics:</p>
-                              <div className="flex flex-wrap gap-1.5">
+                            <div className="px-3 pb-3 pt-1 border-t border-border/50 bg-muted/30">
+                              <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1.5">Subtopics Covered:</p>
+                              <div className="flex flex-wrap gap-1">
                                 {unit.topics.map((topic) => (
-                                  <span key={topic} className="text-xs bg-background border border-border px-2 py-0.5 rounded-lg">{topic}</span>
+                                  <span key={topic} className="text-[11px] bg-card border border-border/60 px-2 py-0.5 rounded text-foreground">
+                                    {topic}
+                                  </span>
                                 ))}
                               </div>
                             </div>
@@ -293,11 +357,11 @@ export default function SyllabusAnalyzerPage() {
               </div>
             </div>
 
-            {/* Alert */}
-            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                Focus on high-weightage topics for better exam preparation!
+            {/* Strategic note */}
+            <div className="bg-card border border-border/80 rounded-xl p-4 flex items-start gap-3 text-xs">
+              <AlertCircle className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+              <p className="text-muted-foreground">
+                <strong className="text-foreground font-medium">Strategic Tip:</strong> Prioritize top 2 modules by weightage first to guarantee foundational exam score before moving to lower-yield chapters.
               </p>
             </div>
           </motion.div>

@@ -1,6 +1,6 @@
 {
-  "name": "ExamMind AI",
-  "description": "AI-powered study platform for students: syllabus analysis, PYQ predictions, AI notes, handwritten assignments, viva prep, and personalized study planning.",
+  "name": "PadhaiHub",
+  "description": "Comprehensive AI-powered study platform for students: syllabus analysis, PYQ predictions, AI notes, handwritten assignments, viva prep, and personalized study planning.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

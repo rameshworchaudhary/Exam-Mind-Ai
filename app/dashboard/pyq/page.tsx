@@ -128,26 +128,41 @@ export default function PYQPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Upload Card */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="bg-card border border-border rounded-2xl p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-white" />
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-card border border-border/80 rounded-xl p-5 sm:p-6"
+      >
+        <div className="flex items-center justify-between pb-4 mb-5 border-b border-border/60">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-sky-400" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-base tracking-tight text-foreground">PYQ Pattern & Question Predictor</h2>
+              <p className="text-xs text-muted-foreground">Upload past year question papers to uncover question recurrence and high-probability topics</p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-semibold text-lg">PYQ Prediction Engine</h2>
-            <p className="text-sm text-muted-foreground">Upload previous year papers to predict exam questions</p>
-          </div>
+          <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-0.5 rounded bg-muted/60 border border-border/50 hidden sm:inline">
+            Multi-Year AI Analysis
+          </span>
         </div>
 
         <div className="mb-4">
-          <label className="text-sm font-medium mb-2 block">Subject</label>
-          <input type="text" placeholder="e.g. Mathematics, Operating Systems"
-            value={subject} onChange={(e) => setSubject(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl border border-border bg-muted/50 text-sm focus:outline-none focus:ring-2 focus:ring-examind-500" />
+          <label className="text-xs font-medium text-foreground mb-1.5 block">
+            Subject or Course Title <span className="text-muted-foreground font-normal">(Optional)</span>
+          </label>
+          <input
+            type="text"
+            placeholder="e.g. Mathematics, Operating Systems, Database Management"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            className="w-full px-3.5 py-2 rounded-lg border border-border/80 bg-muted/30 text-xs sm:text-sm text-foreground focus:outline-none focus:border-sky-500 focus:bg-card transition-colors placeholder:text-muted-foreground/60"
+          />
         </div>
 
-        <div onClick={() => fileRef.current?.click()}
+        <div
+          onClick={() => fileRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
@@ -157,49 +172,60 @@ export default function PYQPage() {
               handleFileSelect(mockEvent);
             }
           }}
-          className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
-            file ? "border-blue-500 bg-blue-50/50 dark:bg-blue-950/20" : "border-border hover:border-blue-400 hover:bg-muted/30"
-          }`}>
+          className={`border border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-all ${
+            file
+              ? "border-sky-500/60 bg-sky-500/5"
+              : "border-border/80 hover:border-sky-500/40 hover:bg-muted/20"
+          }`}
+        >
           <input ref={fileRef} type="file" accept=".pdf,.txt" className="hidden" onChange={handleFileSelect} />
           {file ? (
             <div className="flex items-center justify-center gap-3">
-              <CheckCircle className="w-6 h-6 text-blue-500" />
+              <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+              </div>
               <div className="text-left">
-                <p className="font-medium text-sm">{file.name}</p>
-                <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB · Click to change</p>
+                <p className="font-medium text-xs sm:text-sm text-foreground">{file.name}</p>
+                <p className="text-[11px] font-mono text-muted-foreground">{(file.size / 1024).toFixed(1)} KB • Click to replace file</p>
               </div>
             </div>
           ) : (
             <div>
-              <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="font-medium mb-1">Upload PYQ Papers</p>
-              <p className="text-sm text-muted-foreground">PDF or TXT — combine multiple years for better predictions</p>
+              <div className="w-10 h-10 rounded-full bg-muted/60 border border-border/60 flex items-center justify-center mx-auto mb-2.5">
+                <Upload className="w-4 h-4 text-muted-foreground" />
+              </div>
+              <p className="font-medium text-xs sm:text-sm text-foreground mb-0.5">Upload Past Exam Papers (PDF/TXT)</p>
+              <p className="text-[11px] text-muted-foreground">Combine multiple years into single document for optimal pattern recognition</p>
             </div>
           )}
         </div>
 
         {loading && (
           <div className="mt-4 space-y-2">
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-xs font-mono">
               <span className="text-muted-foreground">
-                {uploadProgress < 35 ? "Reading file..." : uploadProgress < 60 ? "Analyzing patterns..." : uploadProgress < 90 ? "Generating predictions..." : "Done!"}
+                {uploadProgress < 35 ? "Parsing previous questions..." : uploadProgress < 60 ? "Calculating recurrence algorithms..." : uploadProgress < 90 ? "Predicting upcoming examination questions..." : "Finalizing..."}
               </span>
-              <span className="font-medium">{uploadProgress}%</span>
+              <span className="font-medium text-sky-400">{uploadProgress}%</span>
             </div>
-            <Progress value={uploadProgress} className="h-2" />
+            <Progress value={uploadProgress} className="h-1.5" />
           </div>
         )}
 
-        <Button onClick={handleAnalyze} disabled={!file || loading}
-          className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white h-11">
+        <Button
+          onClick={handleAnalyze}
+          disabled={!file || loading}
+          className="mt-4 w-full bg-sky-600 hover:bg-sky-500 text-white text-xs sm:text-sm font-medium h-10 rounded-lg transition-colors"
+        >
           {loading ? (
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Analyzing PYQ...
+              <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Analyzing Recurrence Matrix...</span>
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />Analyze & Predict Questions
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Predict Probable Exam Questions</span>
             </div>
           )}
         </Button>
@@ -208,116 +234,156 @@ export default function PYQPage() {
       {/* Results */}
       <AnimatePresence>
         {analysis && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
             {/* Trends */}
-            <div className="bg-card border border-border rounded-2xl p-6">
-              <h3 className="font-semibold flex items-center gap-2 mb-4">
-                <BarChart3 className="w-4 h-4 text-blue-500" />Detected Trends
-              </h3>
-              <div className="flex flex-wrap gap-2">
+            <div className="bg-card border border-border/80 rounded-xl p-5">
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-border/60">
+                <h3 className="font-semibold text-sm tracking-tight flex items-center gap-2 text-foreground">
+                  <BarChart3 className="w-4 h-4 text-sky-400" />
+                  Key Pattern Observations
+                </h3>
+                <span className="text-[10px] font-mono text-muted-foreground uppercase">{analysis.trends.length} Identified</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
                 {analysis.trends.length > 0 ? (
                   analysis.trends.map((trend, i) => (
-                    <Badge key={i} className="bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300 border-blue-200 text-xs">
+                    <span
+                      key={i}
+                      className="text-xs bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2.5 py-1 rounded-md"
+                    >
                       {trend}
-                    </Badge>
+                    </span>
                   ))
                 ) : (
-                  <p className="text-sm text-muted-foreground">No trends detected</p>
+                  <p className="text-xs text-muted-foreground">No recurring trends detected</p>
                 )}
               </div>
             </div>
 
             {/* Chart + Repeated Questions */}
-            <div className="grid lg:grid-cols-2 gap-4">
-              <div className="bg-card border border-border rounded-2xl p-6">
-                <h3 className="font-semibold mb-4">Topic Frequency Analysis</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-card border border-border/80 rounded-xl p-5 flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm tracking-tight text-foreground">Topic Recurrence Distribution</h3>
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase">Frequency Score</span>
+                </div>
                 {topicChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={topicChartData} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                      <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                      <YAxis type="category" dataKey="topic" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={90} />
-                      <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "12px", fontSize: "12px" }} />
-                      <Bar dataKey="weightage" fill="#3b82f6" radius={[0, 6, 6, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div className="h-56 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={topicChartData} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" className="opacity-40" />
+                        <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="topic" tick={{ fontSize: 10, fill: "hsl(var(--foreground))" }} axisLine={false} tickLine={false} width={100} />
+                        <Tooltip
+                          contentStyle={{
+                            background: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                            fontSize: "11px",
+                          }}
+                        />
+                        <Bar dataKey="weightage" fill="#0284c7" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No topic data available</p>
+                  <p className="text-xs text-muted-foreground">No topic frequency data available</p>
                 )}
               </div>
 
-              <div className="bg-card border border-border rounded-2xl p-6">
-                <h3 className="font-semibold flex items-center gap-2 mb-4">
-                  <Repeat className="w-4 h-4 text-blue-500" />Repeated Questions
-                </h3>
+              <div className="bg-card border border-border/80 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm tracking-tight flex items-center gap-2 text-foreground">
+                    <Repeat className="w-4 h-4 text-sky-400" />
+                    Repeated Questions
+                  </h3>
+                  <span className="text-xs font-mono text-muted-foreground">{analysis.repeatedQuestions.length} Found</span>
+                </div>
                 {analysis.repeatedQuestions.length > 0 ? (
-                  <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                  <div className="space-y-2.5 max-h-[230px] overflow-y-auto pr-1">
                     {analysis.repeatedQuestions.map((q, i) => (
-                      <div key={i} className="border border-border rounded-xl p-3">
-                        <p className="text-sm mb-2">{q.question}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">Appeared {q.frequency}× in papers</span>
-                          <span className={`text-xs font-bold ${getProbabilityColor(q.probability)}`}>{q.probability}% likely</span>
+                      <div key={i} className="border border-border/70 rounded-lg p-3 bg-muted/20">
+                        <p className="text-xs font-medium text-foreground mb-2 leading-snug">{q.question}</p>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground font-mono">Appeared in {q.frequency} papers</span>
+                          <span className={`font-mono font-semibold ${getProbabilityColor(q.probability)}`}>{q.probability}% probability</span>
                         </div>
-                        <div className="h-1.5 bg-muted rounded-full mt-1.5 overflow-hidden">
-                          <div className="h-full rounded-full transition-all" style={{
-                            width: `${q.probability}%`,
-                            background: q.probability >= 80 ? "#22c55e" : q.probability >= 60 ? "#f59e0b" : "#ef4444"
-                          }} />
+                        <div className="h-1 bg-muted rounded-full mt-1.5 overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${q.probability}%`,
+                              background: q.probability >= 80 ? "#10b981" : q.probability >= 60 ? "#f59e0b" : "#ef4444",
+                            }}
+                          />
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No repeated questions found</p>
+                  <p className="text-xs text-muted-foreground">No exact recurring questions found</p>
                 )}
               </div>
             </div>
 
             {/* Predicted Questions */}
-            <div className="bg-card border border-border rounded-2xl p-6">
-              <h3 className="font-semibold flex items-center gap-2 mb-4">
-                <Target className="w-4 h-4 text-blue-500" />🎯 Predicted Questions
-              </h3>
+            <div className="bg-card border border-border/80 rounded-xl p-5">
+              <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/60">
+                <h3 className="font-semibold text-sm tracking-tight flex items-center gap-2 text-foreground">
+                  <Target className="w-4 h-4 text-sky-400" />
+                  High-Probability Exam Predictions
+                </h3>
+                <span className="text-xs font-mono text-muted-foreground">{analysis.predictions.length} Predictions</span>
+              </div>
               {analysis.predictions.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {analysis.predictions.map((pred, i) => (
-                    <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.08 }}
-                      className="border border-border rounded-xl p-4 hover:border-blue-300 transition-colors">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center shrink-0">{i + 1}</div>
-                            <p className="font-medium text-sm">{pred.question}</p>
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className="border border-border/70 rounded-lg p-3.5 bg-muted/20 hover:border-sky-500/40 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start gap-2.5 mb-1.5">
+                            <span className="w-5 h-5 rounded bg-sky-500/20 text-sky-300 font-mono text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">
+                              {i + 1}
+                            </span>
+                            <p className="font-medium text-xs sm:text-sm text-foreground leading-snug">{pred.question}</p>
                           </div>
-                          <p className="text-xs text-muted-foreground pl-8">{pred.reasoning}</p>
+                          <p className="text-[11px] text-muted-foreground pl-7 leading-relaxed">{pred.reasoning}</p>
                         </div>
                         <div className="text-right shrink-0">
-                          <div className={`text-lg font-bold ${getProbabilityColor(pred.probability)}`}>{pred.probability}%</div>
-                          <div className="text-xs text-muted-foreground">probability</div>
+                          <div className={`text-base font-mono font-bold ${getProbabilityColor(pred.probability)}`}>
+                            {pred.probability}%
+                          </div>
+                          <div className="text-[10px] font-mono text-muted-foreground uppercase">Probability</div>
                         </div>
                       </div>
-                      <div className="h-1.5 bg-muted rounded-full mt-2 ml-8 overflow-hidden">
-                        <div className="h-full rounded-full" style={{
-                          width: `${pred.probability}%`,
-                          background: pred.probability >= 80 ? "#22c55e" : pred.probability >= 60 ? "#f59e0b" : "#ef4444"
-                        }} />
+                      <div className="h-1 bg-muted rounded-full mt-2.5 ml-7 overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${pred.probability}%`,
+                            background: pred.probability >= 80 ? "#10b981" : pred.probability >= 60 ? "#f59e0b" : "#ef4444",
+                          }}
+                        />
                       </div>
                     </motion.div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No predictions available</p>
+                <p className="text-xs text-muted-foreground">No predictions generated yet</p>
               )}
             </div>
 
             {/* Warning */}
-            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                Predictions are based on historical patterns. Upload more years for higher accuracy. Always cover the full syllabus!
+            <div className="bg-card border border-border/80 rounded-xl p-4 flex items-start gap-3 text-xs">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-muted-foreground">
+                <strong className="text-foreground font-medium">Predictive Disclaimer:</strong> Forecasts are calculated from historical recurrence frequency. Maintain comprehensive syllabus coverage while prioritizing these target questions.
               </p>
             </div>
           </motion.div>

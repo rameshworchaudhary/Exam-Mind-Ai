@@ -150,73 +150,82 @@ export default function AssignmentsPage() {
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Input Card */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-card border border-border rounded-2xl p-6"
+        className="bg-card border border-border/80 rounded-xl p-5 sm:p-6"
       >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-            <PenTool className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between pb-4 mb-5 border-b border-border/60">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+              <PenTool className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-base tracking-tight text-foreground">Handwritten Assignment Generator</h2>
+              <p className="text-xs text-muted-foreground">Draft academic responses formatted with organic handwriting ink on ruled paper</p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-semibold text-lg">Handwritten Assignment Generator</h2>
-            <p className="text-sm text-muted-foreground">Generate AI answers in handwritten notebook style</p>
-          </div>
+          <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground px-2 py-0.5 rounded bg-muted/60 border border-border/50 hidden sm:inline">
+            PDF Renderer
+          </span>
         </div>
 
         {/* Student Name + Subject */}
-        <div className="grid sm:grid-cols-2 gap-4 mb-4">
+        <div className="grid sm:grid-cols-2 gap-3.5 mb-4">
           <div>
-            <label className="text-sm font-medium mb-2 block">
-              <User className="w-3.5 h-3.5 inline mr-1" />
-              Student Name
+            <label className="text-xs font-medium text-foreground mb-1.5 flex items-center gap-1">
+              <User className="w-3 h-3 text-muted-foreground" />
+              Student / Submitter Name
             </label>
             <input
               type="text"
-              placeholder="Your name for the assignment"
+              placeholder="e.g. Alex Henderson"
               value={studentName}
               onChange={(e) => setStudentName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-border bg-muted/50 text-sm focus:outline-none focus:ring-2 focus:ring-examind-500"
+              className="w-full px-3.5 py-2 rounded-lg border border-border/80 bg-muted/30 text-xs sm:text-sm text-foreground focus:outline-none focus:border-amber-500 focus:bg-card transition-colors placeholder:text-muted-foreground/60"
             />
           </div>
           <div>
-            <label className="text-sm font-medium mb-2 block">Subject</label>
+            <label className="text-xs font-medium text-foreground mb-1.5 block">Subject / Module</label>
             <input
               type="text"
-              placeholder="e.g., Computer Science"
+              placeholder="e.g. CS302 Database Architecture"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-border bg-muted/50 text-sm focus:outline-none focus:ring-2 focus:ring-examind-500"
+              className="w-full px-3.5 py-2 rounded-lg border border-border/80 bg-muted/30 text-xs sm:text-sm text-foreground focus:outline-none focus:border-amber-500 focus:bg-card transition-colors placeholder:text-muted-foreground/60"
             />
           </div>
         </div>
 
         {/* Question */}
         <div className="mb-4">
-          <label className="text-sm font-medium mb-2 block">Assignment Question</label>
+          <label className="text-xs font-medium text-foreground mb-1.5 block">Assignment Prompt or Question</label>
           <textarea
             rows={3}
-            placeholder="Enter your assignment question here..."
+            placeholder="Type or paste the full assignment problem statement or essay prompt..."
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl border border-border bg-muted/50 text-sm focus:outline-none focus:ring-2 focus:ring-examind-500 resize-none"
+            className="w-full px-3.5 py-2.5 rounded-lg border border-border/80 bg-muted/30 text-xs sm:text-sm text-foreground focus:outline-none focus:border-amber-500 focus:bg-card transition-colors placeholder:text-muted-foreground/60 resize-none"
           />
         </div>
 
         {/* Ink Color */}
         <div className="mb-5">
-          <label className="text-sm font-medium mb-2 block">Ink Color</label>
-          <div className="flex gap-2">
+          <label className="text-xs font-medium text-foreground mb-2 block">Ink Simulation Color</label>
+          <div className="flex flex-wrap gap-2">
             {inkColors.map((ink) => (
               <button
                 key={ink.color}
                 onClick={() => setInkColor(ink.color)}
                 title={ink.label}
-                className={`w-8 h-8 rounded-full border-2 transition-all ${
-                  inkColor === ink.color ? "border-examind-500 scale-110" : "border-transparent hover:border-muted-foreground"
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium transition-all ${
+                  inkColor === ink.color
+                    ? "border-amber-500 bg-amber-500/10 text-foreground"
+                    : "border-border/60 bg-muted/20 text-muted-foreground hover:border-border"
                 }`}
-                style={{ background: ink.color }}
-              />
+              >
+                <span className="w-3 h-3 rounded-full border border-black/20" style={{ background: ink.color }} />
+                <span>{ink.label}</span>
+              </button>
             ))}
           </div>
         </div>
@@ -224,17 +233,17 @@ export default function AssignmentsPage() {
         <Button
           onClick={handleGenerate}
           disabled={!question || !subject || loading}
-          className="w-full bg-examind-600 hover:bg-examind-700 text-white h-11"
+          className="w-full bg-amber-600 hover:bg-amber-500 text-white text-xs sm:text-sm font-medium h-10 rounded-lg transition-colors"
         >
           {loading ? (
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Generating Answer...
+              <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Synthesizing Academic Answer...</span>
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              Generate Assignment Answer
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Generate Assignment Solution</span>
             </div>
           )}
         </Button>
@@ -244,51 +253,46 @@ export default function AssignmentsPage() {
       <AnimatePresence>
         {assignment && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-card border border-border rounded-2xl p-6"
+            className="bg-card border border-border/80 rounded-xl p-5 sm:p-6"
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold flex items-center gap-2">
-                <FileText className="w-4 h-4 text-amber-500" />
-                Generated Answer
-                <span className="text-xs text-muted-foreground font-normal">({assignment.wordCount} words)</span>
-              </h3>
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-border/60">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-400" />
+                <h3 className="font-semibold text-sm tracking-tight text-foreground">Generated Solution</h3>
+                <span className="text-[11px] font-mono text-muted-foreground">({assignment.wordCount} words)</span>
+              </div>
               <Button
                 onClick={handleGeneratePDF}
                 disabled={generating}
                 size="sm"
-                className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5"
+                className="h-8 text-xs bg-amber-600 hover:bg-amber-500 text-white gap-1.5"
               >
                 {generating ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <PenTool className="w-3.5 h-3.5" />
                 )}
-                {generating ? "Creating..." : "Make Handwritten"}
+                {generating ? "Formatting..." : "Convert to Handwriting"}
               </Button>
             </div>
 
             {/* Answer Sections */}
-           {/* Answer Sections */}
-         <div className="space-y-4">
-  {Array.isArray(assignment?.sections) && assignment.sections.length > 0 ? (
-    assignment.sections.map((section, i) => (
-      <div key={i} className="border-l-2 border-examind-500 pl-4">
-        <h4 className="font-semibold text-sm text-examind-600 mb-2">
-          {section.heading}
-        </h4>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          {section.content}
-        </p>
-      </div>
-    ))
-  ) : (
-    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-      {assignment?.answer || "No answer generated"}
-    </p>
-  )}
-    </div>
+            <div className="space-y-3">
+              {Array.isArray(assignment?.sections) && assignment.sections.length > 0 ? (
+                assignment.sections.map((section, i) => (
+                  <div key={i} className="border-l-2 border-amber-500/80 pl-3.5 py-0.5">
+                    <h4 className="font-medium text-xs text-amber-400 mb-1">{section.heading}</h4>
+                    <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed">{section.content}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                  {assignment?.answer || "No answer generated"}
+                </p>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -297,18 +301,18 @@ export default function AssignmentsPage() {
       <AnimatePresence>
         {showPreview && htmlContent && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-card border border-border rounded-2xl overflow-hidden"
+            className="bg-card border border-border/80 rounded-xl overflow-hidden"
           >
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Eye className="w-4 h-4 text-amber-500" />
-                Handwritten Preview
+            <div className="px-5 py-3.5 border-b border-border/60 flex items-center justify-between bg-muted/20">
+              <h3 className="font-semibold text-sm tracking-tight flex items-center gap-2 text-foreground">
+                <Eye className="w-4 h-4 text-amber-400" />
+                Handwritten Notebook Render
               </h3>
               <Button
                 onClick={handleDownloadPDF}
-                className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
                 size="sm"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -317,22 +321,22 @@ export default function AssignmentsPage() {
             </div>
 
             {/* Notebook Style Preview */}
-            <div className="p-6 bg-gray-100 dark:bg-gray-900">
+            <div className="p-4 sm:p-6 bg-muted/30">
               <div
-                className="max-w-2xl mx-auto bg-amber-50 rounded-lg shadow-lg overflow-hidden"
+                className="max-w-2xl mx-auto bg-[#faf8f0] text-slate-900 rounded-lg shadow-sm border border-border/50 overflow-hidden"
                 style={{
                   backgroundImage: `
                     repeating-linear-gradient(
                       transparent,
                       transparent 37px,
-                      #c8d3e8 37px,
-                      #c8d3e8 38px
+                      #d4dceb 37px,
+                      #d4dceb 38px
                     )
                   `,
-                  minHeight: "400px",
-                  padding: "40px 60px 40px 100px",
+                  minHeight: "360px",
+                  padding: "36px 40px 36px 70px",
                   position: "relative",
-                  fontFamily: "'Caveat', cursive",
+                  fontFamily: "'Caveat', cursive, sans-serif",
                   fontSize: "18px",
                   color: inkColor,
                   lineHeight: "38px",
@@ -342,22 +346,22 @@ export default function AssignmentsPage() {
                 <div
                   style={{
                     position: "absolute",
-                    left: "80px",
+                    left: "55px",
                     top: 0,
                     bottom: 0,
-                    width: "2px",
+                    width: "1.5px",
                     background: "#e88080",
-                    opacity: 0.7,
+                    opacity: 0.6,
                   }}
                 />
 
                 {/* Header */}
-                <div style={{ marginBottom: "38px", transform: "rotate(-0.3deg)" }}>
+                <div style={{ marginBottom: "38px", transform: "rotate(-0.2deg)" }}>
                   <strong>Q: {question}</strong>
                 </div>
 
                 {/* Answer sections */}
-                <div style={{ transform: "rotate(-0.2deg)" }}>
+                <div style={{ transform: "rotate(-0.1deg)" }}>
                   <strong>Ans: </strong>
                   {assignment?.sections.map((s, i) => (
                     <div key={i} style={{ marginBottom: "10px" }}>
@@ -368,7 +372,7 @@ export default function AssignmentsPage() {
                   ))}
                 </div>
 
-                <p className="mt-4 text-xs opacity-60">[Preview — Download PDF for full content]</p>
+                <p className="mt-4 text-[11px] opacity-60 font-sans">[Preview Mode — Click Download PDF for high-res vector rendering]</p>
               </div>
             </div>
           </motion.div>
@@ -376,11 +380,10 @@ export default function AssignmentsPage() {
       </AnimatePresence>
 
       {/* Info Banner */}
-      <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-4">
-        <p className="text-sm text-blue-700 dark:text-blue-400">
-          <strong>✍️ How it works:</strong> Enter your assignment question → AI generates a proper academic answer →
-          Click "Make Handwritten" → Get a beautiful notebook-style PDF with blue ink, ruled lines, and margins.
-          The PDF looks like genuine handwritten work!
+      <div className="bg-card border border-border/80 rounded-xl p-4 flex items-start gap-3 text-xs">
+        <PenTool className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <p className="text-muted-foreground">
+          <strong className="text-foreground font-medium">Assignment Engine:</strong> Enter problem statement → AI constructs an academic rubric solution → Convert into high-resolution ruled paper with natural stroke variation and margin lines.
         </p>
       </div>
     </div>

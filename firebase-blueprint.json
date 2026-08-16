@@ -80,7 +80,7 @@
     },
     "ChatMessage": {
       "title": "ChatMessage",
-      "description": "Conversational record with ExamMind AI",
+      "description": "Conversational record with PadhaiHub",
       "type": "object",
       "properties": {
         "uid": { "type": "string", "description": "User UID" },

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Brain,
+  ChevronsLeft,
   LayoutDashboard,
   FileText,
   TrendingUp,
@@ -15,14 +15,12 @@ import {
   Mic,
   Calendar,
   MessageSquare,
-  BarChart3,
   Gauge,
   Settings,
   LogOut,
   Menu,
   X,
-  Sparkles,
-  ChevronRight,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -31,35 +29,16 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/utils";
-import { Logo } from "@/components/ui/Logo";
 
-const navItems = [
-  {
-    group: "Main",
-    items: [
-      { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-      { href: "/dashboard/syllabus", icon: FileText, label: "Syllabus Analyzer" },
-      { href: "/dashboard/pyq", icon: TrendingUp, label: "PYQ Predictions" },
-      { href: "/dashboard/notes", icon: BookOpen, label: "AI Notes" },
-      { href: "/dashboard/assignments", icon: PenTool, label: "Assignments" },
-    ],
-  },
-  {
-    group: "Tools",
-    items: [
-      { href: "/dashboard/viva", icon: Mic, label: "Viva Prep" },
-      { href: "/dashboard/planner", icon: Calendar, label: "Study Planner" },
-      { href: "/dashboard/chatbot", icon: MessageSquare, label: "AI Chatbot" },
-      { href: "/dashboard/predictor", icon: BarChart3, label: "Performance" },
-    ],
-  },
-  {
-    group: "Account",
-    items: [
-      { href: "/dashboard/billing", icon: Gauge, label: "Usage & Limits" },
-      { href: "/dashboard/settings", icon: Settings, label: "Settings" },
-    ],
-  },
+const mainNavItems = [
+  { href: "/dashboard", icon: LayoutDashboard, label: "Your Courses" },
+  { href: "/dashboard/syllabus", icon: FileText, label: "Syllabus Breakdown" },
+  { href: "/dashboard/pyq", icon: TrendingUp, label: "Past Exam Questions" },
+  { href: "/dashboard/notes", icon: BookOpen, label: "Quick Notes" },
+  { href: "/dashboard/assignments", icon: PenTool, label: "Handwritten Notes" },
+  { href: "/dashboard/viva", icon: Mic, label: "Viva & Oral Test" },
+  { href: "/dashboard/planner", icon: Calendar, label: "Study Schedule" },
+  { href: "/dashboard/chatbot", icon: MessageSquare, label: "Ask a Doubt" },
 ];
 
 export function Sidebar() {
@@ -67,6 +46,9 @@ export function Sidebar() {
   const { user, userProfile } = useAuth();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const displayEmail = user?.email || "chaudharyishwor143@gmail.com";
 
   const handleLogout = async () => {
     try {
@@ -78,74 +60,140 @@ export function Sidebar() {
     }
   };
 
+  const handleSupportClick = () => {
+    window.location.href = "mailto:chaudharyishwor143@gmail.com?subject=PadhaiHub%20Student%20Support%20Request";
+    toast.info("Opening email to chaudharyishwor143@gmail.com");
+  };
+
   const SidebarContent = () => (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-sidebar-border">
-        <Logo size="md" href="/dashboard" />
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-          <Sparkles className="w-2.5 h-2.5" /> Free
-        </span>
+    <div className="flex flex-col h-full bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 select-none transition-colors">
+      {/* Top Header */}
+      <div className="flex items-center justify-between px-4 py-4 border-b border-zinc-200/80 dark:border-zinc-800">
+        <Link href="/dashboard" className="flex items-center gap-2">
+          {/* Stylized PadhaiHub typography */}
+          <div className="flex items-center font-bold tracking-tight text-lg text-zinc-900 dark:text-white">
+            <span className="text-indigo-600 dark:text-indigo-400 font-black text-xl tracking-tight">Padhai</span>
+            <span className="font-bold tracking-tight text-base text-zinc-900 dark:text-white">Hub</span>
+          </div>
+        </Link>
+
+        {/* Collapse toggle icon << */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900 p-1.5 rounded-md transition-colors hidden lg:flex items-center justify-center"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <ChevronsLeft className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-        {navItems.map((group) => (
-          <div key={group.group}>
-            <p className="text-[11px] font-semibold text-sidebar-foreground/40 uppercase tracking-wider px-3 mb-2">
-              {group.group}
-            </p>
-            <div className="space-y-1">
-              {group.items.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  (item.href !== "/dashboard" && pathname.startsWith(item.href));
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMobileOpen(false)}
-                    className={cn(
-                      "sidebar-link group relative",
-                      isActive && "active"
-                    )}
-                  >
-                    <item.icon className={cn("w-4 h-4 shrink-0 transition-colors", isActive ? "text-indigo-400" : "text-sidebar-foreground/60 group-hover:text-sidebar-foreground")} />
-                    <span className="flex-1 text-sm">{item.label}</span>
-                    {isActive && (
-                      <ChevronRight className="w-3.5 h-3.5 text-indigo-400/70 shrink-0" />
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+      {/* Intro section matching reference */}
+      <div className="px-4 pt-5 pb-3">
+        <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Your Courses</h2>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
+          Enter a course on the right to take an assessment or study materials.
+        </p>
+      </div>
+
+      {/* Navigation List */}
+      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+        {mainNavItems.map((item) => {
+          const isActive =
+            pathname === item.href ||
+            (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setMobileOpen(false)}
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors group",
+                isActive
+                  ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-semibold"
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+              )}
+            >
+              <item.icon
+                className={cn(
+                  "w-4 h-4 shrink-0 transition-colors",
+                  isActive
+                    ? "text-indigo-600 dark:text-indigo-400"
+                    : "text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"
+                )}
+              />
+              <span className="flex-1 truncate">{item.label}</span>
+              {isActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 shrink-0" />
+              )}
+            </Link>
+          );
+        })}
+
+        <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800/80 mt-3 space-y-1">
+          <Link
+            href="/dashboard/billing"
+            onClick={() => setMobileOpen(false)}
+            className={cn(
+              "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+              pathname === "/dashboard/billing"
+                ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-semibold"
+                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+            )}
+          >
+            <Gauge className="w-4 h-4 text-zinc-400" />
+            <span>Daily Usage & Limits</span>
+          </Link>
+          <Link
+            href="/dashboard/settings"
+            onClick={() => setMobileOpen(false)}
+            className={cn(
+              "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
+              pathname === "/dashboard/settings"
+                ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-semibold"
+                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+            )}
+          >
+            <Settings className="w-4 h-4 text-zinc-400" />
+            <span>Settings</span>
+          </Link>
+        </div>
       </nav>
 
-      {/* User Profile at Bottom */}
-      <div className="border-t border-sidebar-border p-3 bg-sidebar-background/60">
-        <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-sidebar-accent/70 transition-colors border border-transparent hover:border-sidebar-border">
-          <Avatar className="w-8 h-8 shrink-0 ring-1 ring-border">
+      {/* Bottom Help / Support matching screenshot */}
+      <div className="border-t border-zinc-200/80 dark:border-zinc-800 p-3 space-y-2 bg-white dark:bg-zinc-950">
+        <button
+          onClick={handleSupportClick}
+          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+          title="Contact chaudharyishwor143@gmail.com"
+        >
+          <div className="w-5 h-5 rounded border border-zinc-300 dark:border-zinc-700 flex items-center justify-center text-zinc-600 dark:text-zinc-400 shrink-0 text-[11px] font-bold">
+            ?
+          </div>
+          <span className="truncate">PadhaiHub Support</span>
+        </button>
+
+        {/* User Account Tile */}
+        <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800">
+          <Avatar className="w-7 h-7 shrink-0">
             <AvatarImage src={user?.photoURL || ""} />
-            <AvatarFallback className="bg-indigo-600 text-white text-xs font-semibold">
-              {getInitials(userProfile?.displayName || user?.email || "U")}
+            <AvatarFallback className="bg-indigo-600 text-white text-[10px] font-bold">
+              {getInitials(userProfile?.displayName || displayEmail)}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-sidebar-foreground truncate">
+            <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate">
               {userProfile?.displayName || "Student"}
             </p>
-            <p className="text-[11px] text-sidebar-foreground/50 truncate">
-              {user?.email}
+            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
+              {displayEmail}
             </p>
           </div>
           <button
             onClick={handleLogout}
-            className="text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors p-1.5 rounded-lg"
+            className="text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 p-1.5 rounded transition-colors"
             title="Sign out"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -155,16 +203,18 @@ export function Sidebar() {
   return (
     <>
       {/* Desktop Sidebar */}
-      <div className="hidden lg:flex fixed inset-y-0 left-0 w-64 bg-sidebar border-r border-sidebar-border flex-col z-30">
+      <aside className="hidden lg:flex fixed inset-y-0 left-0 w-64 bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800 flex-col z-30 transition-colors">
         <SidebarContent />
-      </div>
+      </aside>
 
       {/* Mobile Hamburger Button */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 w-10 h-10 bg-card border border-border rounded-lg flex items-center justify-center shadow-sm"
+        type="button"
+        aria-label="Toggle navigation menu"
+        className="lg:hidden fixed top-3 left-3 z-50 w-9 h-9 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg flex items-center justify-center text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shadow-sm"
         onClick={() => setMobileOpen(!mobileOpen)}
       >
-        {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
       </button>
 
       {/* Mobile Sidebar Overlay */}
@@ -175,15 +225,15 @@ export function Sidebar() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="lg:hidden fixed inset-0 bg-black/50 z-40"
+              className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-xs z-40"
               onClick={() => setMobileOpen(false)}
             />
             <motion.div
-              initial={{ x: -280 }}
+              initial={{ x: -260 }}
               animate={{ x: 0 }}
-              exit={{ x: -280 }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="lg:hidden fixed inset-y-0 left-0 w-64 bg-sidebar border-r border-sidebar-border z-50 flex flex-col"
+              exit={{ x: -260 }}
+              transition={{ type: "spring", damping: 28, stiffness: 280 }}
+              className="lg:hidden fixed inset-y-0 left-0 w-64 bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800 z-50 flex flex-col shadow-2xl"
             >
               <SidebarContent />
             </motion.div>

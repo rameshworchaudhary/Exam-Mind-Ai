@@ -3,10 +3,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Send, Brain, User, Trash2, BookOpen } from "lucide-react";
+import { MessageSquare, Send, Bot, User, Trash2, Sparkles, CornerDownLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
-import { saveChatMessage, getChatHistory, incrementUserProfileField } from "@/firebase/firestore";
+import { saveChatMessage, incrementUserProfileField } from "@/firebase/firestore";
 import { generateId } from "@/utils";
 import { toast } from "sonner";
 
@@ -18,12 +18,10 @@ interface Message {
 }
 
 const SUGGESTED_QUESTIONS = [
-  "Explain the concept of recursion with an example",
-  "What is the difference between RAM and ROM?",
-  "How does TCP/IP protocol work?",
-  "Explain Big O notation in simple terms",
-  "What are ACID properties in databases?",
-  "How does Dijkstra's algorithm work?",
+  "Explain TCP vs UDP with a simple everyday real-life example",
+  "How does Dijkstra's algorithm work step-by-step?",
+  "What are ACID properties in database management? Give simple examples",
+  "Explain the difference between a Process and a Thread in operating systems",
 ];
 
 export default function ChatbotPage() {
@@ -34,7 +32,8 @@ export default function ChatbotPage() {
     {
       id: "welcome",
       role: "assistant",
-      content: "Hi! I'm ExamMind AI, your personal study assistant 👋\n\nI can help you:\n• Explain concepts and topics\n• Solve doubts and questions\n• Simplify complex topics\n• Prepare for exams\n\nWhat would you like to learn today?",
+      content:
+        "Hi! I'm here to help you study and solve any doubts. Ask me about any topic, equation, or past question, and I'll explain it simply with zero confusing jargon.",
       timestamp: new Date(),
     },
   ]);
@@ -132,92 +131,110 @@ export default function ChatbotPage() {
       {
         id: "welcome",
         role: "assistant",
-        content: "Chat cleared! I'm ready to help you again. What would you like to study?",
+        content: "Conversation cleared. Ready for your next query.",
         timestamp: new Date(),
       },
     ]);
   };
 
   return (
-    <div className="max-w-4xl mx-auto h-[calc(100vh-10rem)] flex flex-col gap-4">
+    <div className="max-w-4xl mx-auto h-[calc(100vh-8.5rem)] flex flex-col gap-3.5">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="bg-card border border-border/80 rounded-xl px-4 py-3 flex items-center justify-between"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
-            <MessageSquare className="w-5 h-5 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
+            <Bot className="w-4 h-4 text-indigo-600" />
           </div>
           <div>
-            <h2 className="font-semibold">AI Study Assistant</h2>
-            <p className="text-xs text-muted-foreground">Powered by GPT-4</p>
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-sm tracking-tight text-foreground">Ask a Study Doubt</h2>
+              <span className="text-[10px] font-medium text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded">
+                Ready to Help
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Clear doubts with simple, step-by-step explanations</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {/* Subject Filter */}
           <input
             type="text"
-            placeholder="Subject context (optional)"
+            placeholder="Subject name (e.g. DBMS)"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            className="hidden sm:block px-3 py-1.5 rounded-lg border border-border bg-muted/50 text-xs focus:outline-none focus:ring-1 focus:ring-examind-500 w-48"
+            className="hidden sm:block px-3 py-1.5 rounded-lg border border-border/80 bg-muted/20 text-xs text-foreground focus:outline-none focus:border-indigo-500 w-44 transition-colors placeholder:text-muted-foreground/60"
           />
-          <Button variant="ghost" size="icon" onClick={clearChat} title="Clear chat" className="w-9 h-9">
-            <Trash2 className="w-4 h-4" />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={clearChat}
+            title="Clear chat thread"
+            className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
           </Button>
         </div>
       </motion.div>
 
       {/* Chat Area */}
-      <div className="flex-1 bg-card border border-border rounded-2xl flex flex-col overflow-hidden">
+      <div className="flex-1 bg-card border border-border/80 rounded-xl flex flex-col overflow-hidden">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
           <AnimatePresence initial={false}>
             {messages.map((message) => (
               <motion.div
                 key={message.id}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
                 className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : "flex-row"}`}
               >
                 {/* Avatar */}
                 <div
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
                     message.role === "assistant"
-                      ? "bg-gradient-to-br from-indigo-500 to-blue-600"
-                      : "bg-gradient-to-br from-examind-500 to-purple-600"
+                      ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
+                      : "bg-muted/40 border-border/70 text-foreground"
                   }`}
                 >
                   {message.role === "assistant" ? (
-                    <Brain className="w-4 h-4 text-white" />
+                    <Bot className="w-3.5 h-3.5" />
                   ) : (
-                    <User className="w-4 h-4 text-white" />
+                    <User className="w-3.5 h-3.5" />
                   )}
                 </div>
 
                 {/* Bubble */}
                 <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-3 ${
+                  className={`max-w-[80%] rounded-xl px-4 py-3 ${
                     message.role === "user"
-                      ? "bg-examind-600 text-white rounded-tr-sm"
-                      : "bg-muted/70 rounded-tl-sm"
+                      ? "bg-indigo-600 text-white rounded-tr-xs"
+                      : "bg-muted/25 border border-border/60 text-foreground/90 rounded-tl-xs"
                   }`}
                 >
                   <div
-                    className="text-sm leading-relaxed whitespace-pre-wrap"
+                    className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap font-sans"
                     dangerouslySetInnerHTML={{
                       __html: message.content
                         .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
                         .replace(/\*(.*?)\*/g, "<em>$1</em>")
-                        .replace(/`(.*?)`/g, "<code class='bg-black/10 px-1 rounded text-xs'>$1</code>")
+                        .replace(
+                          /`(.*?)`/g,
+                          "<code class='bg-black/20 dark:bg-white/10 px-1 py-0.5 rounded font-mono text-[11px]'>$1</code>"
+                        )
                         .replace(/\n/g, "<br/>"),
                     }}
                   />
-                  <p className={`text-xs mt-1.5 ${message.role === "user" ? "text-white/50" : "text-muted-foreground"}`}>
+                  <p
+                    className={`text-[10px] font-mono mt-1.5 ${
+                      message.role === "user" ? "text-white/60" : "text-muted-foreground"
+                    }`}
+                  >
                     {message.timestamp.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
@@ -227,23 +244,18 @@ export default function ChatbotPage() {
             {/* Loading indicator */}
             {loading && (
               <motion.div
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="flex gap-3"
               >
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
-                  <Brain className="w-4 h-4 text-white" />
+                <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                  <Bot className="w-3.5 h-3.5" />
                 </div>
-                <div className="bg-muted/70 rounded-2xl rounded-tl-sm px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="w-2 h-2 rounded-full bg-examind-500 animate-bounce"
-                        style={{ animationDelay: `${i * 0.15}s` }}
-                      />
-                    ))}
-                  </div>
+                <div className="bg-muted/25 border border-border/60 rounded-xl rounded-tl-xs px-4 py-3 flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse delay-150" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse delay-300" />
+                  <span className="text-xs text-muted-foreground ml-1.5 font-mono">Synthesizing...</span>
                 </div>
               </motion.div>
             )}
@@ -253,16 +265,16 @@ export default function ChatbotPage() {
 
         {/* Suggested Questions */}
         {messages.length <= 1 && (
-          <div className="px-4 pb-2">
-            <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-              <BookOpen className="w-3 h-3" /> Try asking:
+          <div className="px-4 pb-3 border-t border-border/40 pt-3 bg-muted/10">
+            <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-amber-400" /> Suggested Prompts
             </p>
-            <div className="flex flex-wrap gap-2">
-              {SUGGESTED_QUESTIONS.slice(0, 4).map((q) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {SUGGESTED_QUESTIONS.map((q) => (
                 <button
                   key={q}
                   onClick={() => sendMessage(q)}
-                  className="text-xs bg-muted/70 hover:bg-muted border border-border px-3 py-1.5 rounded-full transition-colors text-left"
+                  className="text-xs bg-muted/20 hover:bg-muted/40 hover:border-border text-foreground/85 border border-border/60 px-3 py-2 rounded-lg transition-colors text-left truncate"
                 >
                   {q}
                 </button>
@@ -272,23 +284,23 @@ export default function ChatbotPage() {
         )}
 
         {/* Input */}
-        <div className="border-t border-border p-4">
+        <div className="border-t border-border/60 p-3 bg-muted/10">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input
               ref={inputRef}
               type="text"
-              placeholder="Ask me anything about your studies..."
+              placeholder="Ask an academic question or paste an exam problem..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={loading}
-              className="flex-1 px-4 py-2.5 rounded-xl border border-border bg-muted/50 text-sm focus:outline-none focus:ring-2 focus:ring-examind-500 disabled:opacity-50"
+              className="flex-1 px-3.5 py-2 rounded-lg border border-border/80 bg-card text-xs sm:text-sm text-foreground focus:outline-none focus:border-indigo-500 disabled:opacity-50 transition-colors placeholder:text-muted-foreground/60"
             />
             <Button
               type="submit"
               disabled={!input.trim() || loading}
-              className="bg-examind-600 hover:bg-examind-700 text-white w-11 h-11 p-0 rounded-xl"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white w-9 h-9 p-0 rounded-lg transition-colors shrink-0"
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-3.5 h-3.5" />
             </Button>
           </form>
         </div>

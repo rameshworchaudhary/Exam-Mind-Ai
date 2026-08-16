@@ -7,83 +7,84 @@
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 222 47% 11%;
+    --background: 0 0% 100%; /* Pure crisp white background in light mode */
+    --foreground: 240 10% 3.9%; /* Deep dark readable text */
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 243 75% 59%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 220 14% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 243 75% 59%;
-    --radius: 0.75rem;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.625rem;
 
-    --chart-1: 243 75% 59%;
+    --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 240 5.9% 90%;
+    --sidebar-ring: 240 5.9% 10%;
+
+    --font-geist-sans: 'Sora', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-geist-mono: 'JetBrains Mono', monospace;
+    --font-display: 'Sora', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* Refined dark mode */
+  .dark {
+    --background: 240 10% 4.5%; /* Deep dark slate #0B0C10 */
+    --foreground: 0 0% 98%;
+    --card: 240 10% 6.5%; /* Deep elevated dark card #101117 */
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 6.5%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 14%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 16%;
+    --input: 240 3.7% 16%;
+    --ring: 240 4.9% 83.9%;
+    --radius: 0.625rem;
+
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 213 31% 91%;
-    --sidebar-primary: 243 75% 59%;
+    --sidebar-background: 240 10% 5%;
+    --sidebar-foreground: 240 4.8% 90%;
+    --sidebar-primary: 224.3 76.3% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 223 47% 16%;
-    --sidebar-accent-foreground: 213 31% 91%;
-    --sidebar-border: 223 47% 18%;
-    --sidebar-ring: 243 75% 59%;
-
-    --font-geist-sans: 'Sora', sans-serif;
-    --font-geist-mono: 'JetBrains Mono', monospace;
-    --font-display: 'Sora', sans-serif;
-  }
-
-  /* Premium Black dark theme */
-  .dark {
-    --background: 240 6% 3.5%; /* #09090b - sleek obsidian dark */
-    --foreground: 210 20% 98%;
-    --card: 240 5% 6.5%; /* #101014 - distinct card elevation */
-    --card-foreground: 210 20% 98%;
-    --popover: 240 6% 4.5%; /* #0c0c0e */
-    --popover-foreground: 210 20% 98%;
-    --primary: 243 75% 64%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 5% 10%; /* #18181d */
-    --secondary-foreground: 210 20% 98%;
-    --muted: 240 5% 10%; /* #18181d */
-    --muted-foreground: 218 12% 62%;
-    --accent: 240 5% 11%;
-    --accent-foreground: 210 20% 98%;
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 240 5% 14%; /* #212127 - crisp subtle border */
-    --input: 240 5% 14%;
-    --ring: 243 75% 64%;
-
-    --chart-1: 243 75% 65%;
-    --chart-2: 173 58% 45%;
-    --chart-3: 30 80% 60%;
-    --chart-4: 280 65% 65%;
-    --chart-5: 340 75% 60%;
-
-    --sidebar-background: 240 6% 4%; /* #0a0a0d */
-    --sidebar-foreground: 210 20% 95%;
-    --sidebar-primary: 243 75% 64%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 5% 9%; /* #15151a */
-    --sidebar-accent-foreground: 210 20% 98%;
-    --sidebar-border: 240 5% 12%; /* #1d1d23 */
-    --sidebar-ring: 243 75% 64%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 90%;
+    --sidebar-border: 240 3.7% 16%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -101,120 +102,67 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
-    @apply font-semibold tracking-tight;
-  }
-
-  code, pre, kbd {
-    font-family: var(--font-geist-mono);
-  }
-
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/50;
   }
 }
 
-@layer components {
-  /* Glass card effect */
-  .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-border/80 shadow-sm;
-  }
-
-  /* Gradient text */
-  .gradient-text {
-    @apply bg-gradient-to-r from-indigo-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent;
-  }
-
-  /* Shimmer loading effect */
-  .shimmer {
-    background: linear-gradient(
-      90deg,
-      hsl(var(--muted)) 0%,
-      hsl(var(--accent)) 50%,
-      hsl(var(--muted)) 100%
-    );
-    background-size: 1000px 100%;
-    animation: shimmer 2s linear infinite;
-  }
-
-  /* Feature card hover */
-  .feature-card {
-    @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-indigo-500/40;
-  }
-
-  /* Sidebar transition */
-  .sidebar-link {
-    @apply flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150;
-    @apply text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/80;
-  }
-
-  .sidebar-link.active {
-    @apply bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-semibold shadow-sm;
-  }
-
-  /* AI response styling */
-  .ai-response {
-    @apply text-sm leading-relaxed space-y-2.5 text-foreground/90;
-  }
-
-  .ai-response h3 {
-    @apply font-semibold text-base mt-4 mb-2 text-foreground tracking-tight;
-  }
-
-  .ai-response ul {
-    @apply list-disc list-inside space-y-1.5 pl-2;
-  }
-
-  .ai-response ol {
-    @apply list-decimal list-inside space-y-1.5 pl-2;
-  }
-
-  /* Progress bar */
-  .progress-bar {
-    @apply h-2 rounded-full bg-muted overflow-hidden;
-  }
-
-  .progress-fill {
-    @apply h-full rounded-full bg-primary transition-all duration-700 ease-out;
-  }
+/* Handwritten Notebook Canvas Effect */
+.notebook-paper {
+  background-color: #fcfbf7;
+  background-image: linear-gradient(#e2e8f0 1px, transparent 1px);
+  background-size: 100% 28px;
+  line-height: 28px;
 }
 
-/* Page transition animations */
-.page-enter {
-  opacity: 0;
-  transform: translateY(10px);
+.notebook-margin {
+  border-left: 2px solid #f87171;
+  padding-left: 1.5rem;
 }
 
-.page-enter-active {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 300ms, transform 300ms;
-}
-
-/* Handwriting font for assignments */
-.handwriting {
+/* Ink color simulation */
+.ink-blue {
+  color: #1e3a8a;
   font-family: 'Caveat', cursive;
 }
 
-/* Grid pattern background */
-.bg-grid {
-  background-image: linear-gradient(
-      rgba(99, 102, 241, 0.04) 1px,
-      transparent 1px
-    ),
-    linear-gradient(90deg, rgba(99, 102, 241, 0.04) 1px, transparent 1px);
-  background-size: 30px 30px;
+.ink-black {
+  color: #0f172a;
+  font-family: 'Caveat', cursive;
+}
+
+.ink-gel-pen {
+  color: #1d4ed8;
+  font-family: 'Caveat', cursive;
+  text-shadow: 0.2px 0.2px 0.5px rgba(29, 78, 216, 0.4);
+}
+
+/* Print Specific */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-page {
+    page-break-after: always;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}
+
+/* Smooth custom scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
 }
