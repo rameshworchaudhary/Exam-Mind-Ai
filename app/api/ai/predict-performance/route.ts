@@ -1,6 +1,7 @@
 // app/api/ai/predict-performance/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { predictPerformance } from "@/services/ai";
+import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +12,7 @@ export async function POST(req: NextRequest) {
       studyHours,
       syllabusCompletion,
       subjects,
+      uid,
     } = body;
 
     const validSubjects = Array.isArray(subjects) ? subjects.filter(Boolean) : [];
@@ -21,7 +23,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // RUN PERFORMANCE PREDICTOR (Powered by Groq)
+    // 1. CHECK DAILY USAGE LIMIT (35 AI uses per day)
+    if (uid) {
+      const limitCheck = await checkServerDailyUsage(uid, "chat");
+      if (!limitCheck.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Daily limit reached! You have reached your limit of ${limitCheck.limit} AI uses for today. Please try again tomorrow.`,
+            limitReached: true,
+            current: limitCheck.current,
+            limit: limitCheck.limit,
+            remaining: limitCheck.remaining,
+          },
+          { status: 429 }
+        );
+      }
+    }
+
+    // 2. RUN PERFORMANCE PREDICTOR (Powered by Groq)
     const result = await predictPerformance({
       attendance: Number(attendance) || 75,
       internalMarks: Number(internalMarks) || 70,
@@ -29,6 +49,12 @@ export async function POST(req: NextRequest) {
       syllabusCompletion: Number(syllabusCompletion) || 60,
       subjects: validSubjects,
     });
+
+    // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
+    let usageInfo = null;
+    if (uid) {
+      usageInfo = await incrementServerDailyUsage(uid, "chat");
+    }
 
     return NextResponse.json({
       success: true,
@@ -40,6 +66,13 @@ export async function POST(req: NextRequest) {
       recommendations: result.recommendations,
       breakdown: result.breakdown,
       data: result,
+      usage: usageInfo
+        ? {
+            current: usageInfo.chatCount,
+            limit: usageInfo.maxChat,
+            remaining: usageInfo.chatRemaining,
+          }
+        : undefined,
     });
   } catch (error) {
     console.error("Performance prediction API error:", error);

@@ -1,11 +1,12 @@
 // app/api/ai/study-plan/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { generateStudyPlan } from "@/services/ai";
+import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { examDate, subjects, preparationLevel, dailyHours } = body;
+    const { examDate, subjects, preparationLevel, dailyHours, uid } = body;
 
     if (!examDate || !subjects || !Array.isArray(subjects) || subjects.length === 0) {
       return NextResponse.json(
@@ -14,13 +15,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // RUN STUDY PLANNER (Powered by Groq)
+    // 1. CHECK DAILY USAGE LIMIT (35 AI uses per day)
+    if (uid) {
+      const limitCheck = await checkServerDailyUsage(uid, "chat");
+      if (!limitCheck.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Daily limit reached! You have reached your limit of ${limitCheck.limit} AI uses for today. Please try again tomorrow.`,
+            limitReached: true,
+            current: limitCheck.current,
+            limit: limitCheck.limit,
+            remaining: limitCheck.remaining,
+          },
+          { status: 429 }
+        );
+      }
+    }
+
+    // 2. RUN STUDY PLANNER (Powered by Groq)
     const result = await generateStudyPlan({
       examDate,
       subjects: subjects.filter(Boolean),
       preparationLevel: preparationLevel || "intermediate",
       dailyHours: Number(dailyHours) || 4,
     });
+
+    // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
+    let usageInfo = null;
+    if (uid) {
+      usageInfo = await incrementServerDailyUsage(uid, "chat");
+    }
 
     return NextResponse.json({
       success: true,
@@ -29,6 +54,13 @@ export async function POST(req: NextRequest) {
       weeklyGoals: result.weeklyGoals,
       tips: result.tips,
       data: result,
+      usage: usageInfo
+        ? {
+            current: usageInfo.chatCount,
+            limit: usageInfo.maxChat,
+            remaining: usageInfo.chatRemaining,
+          }
+        : undefined,
     });
   } catch (error) {
     console.error("Study plan API error:", error);

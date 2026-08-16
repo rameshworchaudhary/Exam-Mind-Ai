@@ -1,11 +1,12 @@
 // app/api/ai/generate-notes/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { generateNotes } from "@/services/ai";
+import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { subject, topic, noteType } = body;
+    const { subject, topic, noteType, uid } = body;
 
     if (!subject || !topic) {
       return NextResponse.json(
@@ -14,8 +15,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // RUN AI NOTES GENERATOR (Powered by Groq)
+    // 1. CHECK DAILY USAGE LIMIT (35 AI uses per day)
+    if (uid) {
+      const limitCheck = await checkServerDailyUsage(uid, "chat");
+      if (!limitCheck.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Daily limit reached! You have reached your limit of ${limitCheck.limit} AI uses for today. Please try again tomorrow.`,
+            limitReached: true,
+            current: limitCheck.current,
+            limit: limitCheck.limit,
+            remaining: limitCheck.remaining,
+          },
+          { status: 429 }
+        );
+      }
+    }
+
+    // 2. RUN AI NOTES GENERATOR (Powered by Groq)
     const result = await generateNotes(topic, subject, noteType || "short");
+
+    // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
+    let usageInfo = null;
+    if (uid) {
+      usageInfo = await incrementServerDailyUsage(uid, "chat");
+    }
 
     return NextResponse.json({
       success: true,
@@ -25,6 +50,13 @@ export async function POST(req: NextRequest) {
       formulas: result.formulas,
       definitions: result.definitions,
       data: result,
+      usage: usageInfo
+        ? {
+            current: usageInfo.chatCount,
+            limit: usageInfo.maxChat,
+            remaining: usageInfo.chatRemaining,
+          }
+        : undefined,
     });
   } catch (error) {
     console.error("Generate notes API error:", error);

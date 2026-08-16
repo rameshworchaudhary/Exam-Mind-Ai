@@ -36,6 +36,8 @@ export function getTodayDateString(): string {
 
 /**
  * Get the current daily usage for a user from Firestore via Firebase Admin SDK.
+ * Reads the existing document for that UID and current date.
+ * NEVER initializes existing counts back to zero.
  */
 export async function getServerDailyUsage(uid: string): Promise<ServerUsageState> {
   const today = getTodayDateString();
@@ -76,7 +78,7 @@ export async function getServerDailyUsage(uid: string): Promise<ServerUsageState
               : 0;
           chatCount = typeof data.chatCount === "number" ? data.chatCount : 0;
 
-          // Update memory cache
+          // Update memory cache with existing authoritative counts
           inMemoryStore.set(docId, {
             analysisCount,
             chatCount,
@@ -84,12 +86,18 @@ export async function getServerDailyUsage(uid: string): Promise<ServerUsageState
           });
         }
       } else {
-        // Document does not exist yet; check in-memory cache
+        // Document does not exist yet in Firestore; check memory fallback
         const cached = inMemoryStore.get(docId);
         if (cached) {
           analysisCount = cached.analysisCount;
           chatCount = cached.chatCount;
         }
+      }
+    } else {
+      const cached = inMemoryStore.get(docId);
+      if (cached) {
+        analysisCount = cached.analysisCount;
+        chatCount = cached.chatCount;
       }
     }
   } catch (error) {
@@ -123,10 +131,10 @@ export async function getServerDailyUsage(uid: string): Promise<ServerUsageState
  */
 export async function checkServerDailyUsage(
   uid: string,
-  type: "analysis" | "pdf" | "chat"
-): Promise<{ allowed: boolean; current: number; limit: number; remaining: number }> {
+  type: "analysis" | "pdf" | "chat" | "both"
+): Promise<{ allowed: boolean; current: number; limit: number; remaining: number; reason?: "pdf" | "ai" }> {
   if (!uid || uid === "anonymous") {
-    const limit = type === "chat" ? DAILY_CHAT_LIMIT : DAILY_ANALYSIS_LIMIT;
+    const limit = type === "pdf" || type === "analysis" ? DAILY_PDF_LIMIT : DAILY_CHAT_LIMIT;
     return {
       allowed: true,
       current: 0,
@@ -136,15 +144,55 @@ export async function checkServerDailyUsage(
   }
 
   const usage = await getServerDailyUsage(uid);
-  const isChat = type === "chat";
-  const limit = isChat ? DAILY_CHAT_LIMIT : DAILY_ANALYSIS_LIMIT;
-  const current = isChat ? usage.chatCount : usage.analysisCount;
+
+  if (type === "pdf" || type === "analysis") {
+    return {
+      allowed: usage.pdfCount < DAILY_PDF_LIMIT,
+      current: usage.pdfCount,
+      limit: DAILY_PDF_LIMIT,
+      remaining: usage.pdfRemaining,
+      reason: "pdf",
+    };
+  }
+
+  if (type === "both") {
+    const pdfAllowed = usage.pdfCount < DAILY_PDF_LIMIT;
+    const aiAllowed = usage.chatCount < DAILY_CHAT_LIMIT;
+
+    if (!pdfAllowed) {
+      return {
+        allowed: false,
+        current: usage.pdfCount,
+        limit: DAILY_PDF_LIMIT,
+        remaining: usage.pdfRemaining,
+        reason: "pdf",
+      };
+    }
+
+    if (!aiAllowed) {
+      return {
+        allowed: false,
+        current: usage.chatCount,
+        limit: DAILY_CHAT_LIMIT,
+        remaining: usage.chatRemaining,
+        reason: "ai",
+      };
+    }
+
+    return {
+      allowed: true,
+      current: usage.chatCount,
+      limit: DAILY_CHAT_LIMIT,
+      remaining: usage.chatRemaining,
+    };
+  }
 
   return {
-    allowed: current < limit,
-    current,
-    limit,
-    remaining: Math.max(0, limit - current),
+    allowed: usage.chatCount < DAILY_CHAT_LIMIT,
+    current: usage.chatCount,
+    limit: DAILY_CHAT_LIMIT,
+    remaining: usage.chatRemaining,
+    reason: "ai",
   };
 }
 
@@ -154,7 +202,7 @@ export async function checkServerDailyUsage(
  */
 export async function incrementServerDailyUsage(
   uid: string,
-  type: "analysis" | "pdf" | "chat"
+  type: "analysis" | "pdf" | "chat" | "both"
 ): Promise<ServerUsageState> {
   const today = getTodayDateString();
   if (!uid || uid === "anonymous") {
@@ -163,6 +211,11 @@ export async function incrementServerDailyUsage(
 
   const docId = `${uid}_${today}`;
   const isChat = type === "chat";
+  const isPdf = type === "pdf" || type === "analysis";
+  const isBoth = type === "both";
+
+  const incrementChat = isChat || isBoth;
+  const incrementPdf = isPdf || isBoth;
 
   // Persist atomically to Firestore via Firebase Admin SDK
   try {
@@ -177,17 +230,17 @@ export async function incrementServerDailyUsage(
           const newDoc = {
             uid,
             date: today,
-            analysisCount: isChat ? 0 : 1,
-            pdfCount: isChat ? 0 : 1,
-            chatCount: isChat ? 1 : 0,
+            analysisCount: incrementPdf ? 1 : 0,
+            pdfCount: incrementPdf ? 1 : 0,
+            chatCount: incrementChat ? 1 : 0,
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
           };
           transaction.set(docRef, newDoc);
 
           inMemoryStore.set(docId, {
-            analysisCount: isChat ? 0 : 1,
-            chatCount: isChat ? 1 : 0,
+            analysisCount: incrementPdf ? 1 : 0,
+            chatCount: incrementChat ? 1 : 0,
             updatedAt: Date.now(),
           });
         } else {
@@ -200,21 +253,21 @@ export async function incrementServerDailyUsage(
               : 0;
           const prevChat = typeof data.chatCount === "number" ? data.chatCount : 0;
 
-          const nextChat = isChat ? prevChat + 1 : prevChat;
-          const nextAnalysis = isChat ? prevAnalysis : prevAnalysis + 1;
+          const nextChat = incrementChat ? prevChat + 1 : prevChat;
+          const nextAnalysis = incrementPdf ? prevAnalysis + 1 : prevAnalysis;
 
-          if (isChat) {
-            transaction.update(docRef, {
-              chatCount: nextChat,
-              updatedAt: FieldValue.serverTimestamp(),
-            });
-          } else {
-            transaction.update(docRef, {
-              analysisCount: nextAnalysis,
-              pdfCount: nextAnalysis,
-              updatedAt: FieldValue.serverTimestamp(),
-            });
+          const updatePayload: Record<string, unknown> = {
+            updatedAt: FieldValue.serverTimestamp(),
+          };
+          if (incrementChat) {
+            updatePayload.chatCount = nextChat;
           }
+          if (incrementPdf) {
+            updatePayload.analysisCount = nextAnalysis;
+            updatePayload.pdfCount = nextAnalysis;
+          }
+
+          transaction.update(docRef, updatePayload);
 
           inMemoryStore.set(docId, {
             analysisCount: nextAnalysis,
@@ -229,11 +282,8 @@ export async function incrementServerDailyUsage(
         currentMemory = { analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
         inMemoryStore.set(docId, currentMemory);
       }
-      if (isChat) {
-        currentMemory.chatCount += 1;
-      } else {
-        currentMemory.analysisCount += 1;
-      }
+      if (incrementChat) currentMemory.chatCount += 1;
+      if (incrementPdf) currentMemory.analysisCount += 1;
       currentMemory.updatedAt = Date.now();
     }
   } catch (error) {
@@ -242,14 +292,16 @@ export async function incrementServerDailyUsage(
       const adminDb = getAdminFirestore();
       if (adminDb) {
         const docRef = adminDb.collection("dailyUsage").doc(docId);
-        const incrementField = isChat ? "chatCount" : "analysisCount";
         const updatePayload: Record<string, unknown> = {
           uid,
           date: today,
-          [incrementField]: FieldValue.increment(1),
           updatedAt: FieldValue.serverTimestamp(),
         };
-        if (!isChat) {
+        if (incrementChat) {
+          updatePayload.chatCount = FieldValue.increment(1);
+        }
+        if (incrementPdf) {
+          updatePayload.analysisCount = FieldValue.increment(1);
           updatePayload.pdfCount = FieldValue.increment(1);
         }
         await docRef.set(updatePayload, { merge: true });
@@ -263,11 +315,8 @@ export async function incrementServerDailyUsage(
       currentMemory = { analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
       inMemoryStore.set(docId, currentMemory);
     }
-    if (isChat) {
-      currentMemory.chatCount += 1;
-    } else {
-      currentMemory.analysisCount += 1;
-    }
+    if (incrementChat) currentMemory.chatCount += 1;
+    if (incrementPdf) currentMemory.analysisCount += 1;
     currentMemory.updatedAt = Date.now();
   }
 
