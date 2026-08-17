@@ -1,7 +1,7 @@
 // app/api/ai/analyze-pyq/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { analyzePYQ } from "@/services/ai";
-import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
+import { checkServerDailyUsage, incrementServerDailyUsage, getVerifiedUid } from "@/services/usage";
 import pdfParse from "pdf-parse";
 
 export const runtime = "nodejs";
@@ -78,6 +78,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const verifiedUid = await getVerifiedUid(req, uid || undefined);
+    uid = verifiedUid || uid;
+
     // 3. CHECK DAILY USAGE LIMIT (5 PDF/PYQ analyses per day)
     if (uid) {
       const limitCheck = await checkServerDailyUsage(uid, "pdf");
@@ -106,6 +109,14 @@ export async function POST(req: NextRequest) {
 
     // 5. RUN AI ANALYSIS (Powered by NVIDIA Nemotron)
     const result = await analyzePYQ(text.slice(0, 5000), subject);
+
+    // Ensure AI result is valid before consuming usage quota
+    if (!result || (!result.repeatedQuestions?.length && !result.importantTopics?.length && !result.predictions?.length)) {
+      return NextResponse.json(
+        { success: false, error: "Failed to extract insights from previous year questions. Please try again." },
+        { status: 500 }
+      );
+    }
 
     // 6. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
     let usageInfo = null;

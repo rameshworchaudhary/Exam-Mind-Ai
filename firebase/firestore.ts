@@ -137,6 +137,7 @@ export async function getUserProfile(uid: string) {
 export interface DailyUsageData {
   uid?: string;
   date: string;
+  count: number;
   analysisCount: number;
   pdfCount: number;
   chatCount: number;
@@ -150,7 +151,7 @@ export interface DailyUsageData {
 
 export function getTodayDateString(): string {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
 }
 
 export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
@@ -159,6 +160,7 @@ export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
     return {
       uid: "anonymous",
       date: today,
+      count: 0,
       analysisCount: 0,
       pdfCount: 0,
       chatCount: 0,
@@ -174,15 +176,28 @@ export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
   // 1. Fetch authoritative server-side usage from /api/user/usage if in browser
   if (typeof window !== "undefined") {
     try {
+      const headers: Record<string, string> = {};
+      if (auth?.currentUser) {
+        try {
+          const token = await auth.currentUser.getIdToken();
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+        } catch {
+          // ignore token fetch error
+        }
+      }
       const res = await fetch(`/api/user/usage?uid=${encodeURIComponent(uid)}`, {
         cache: "no-store",
+        headers,
       });
       if (res.ok) {
         const json = await res.json();
         const data = json.data || json;
         if (
           data &&
-          (typeof data.analysisCount === "number" ||
+          (typeof data.count === "number" ||
+            typeof data.analysisCount === "number" ||
             typeof data.pdfCount === "number" ||
             typeof data.chatCount === "number")
         ) {
@@ -193,9 +208,14 @@ export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
               ? data.pdfCount
               : 0;
           const chatCount = typeof data.chatCount === "number" ? data.chatCount : 0;
+          const count =
+            typeof data.count === "number"
+              ? data.count
+              : analysisCount + chatCount;
           return {
             uid,
             date: data.date || today,
+            count,
             analysisCount,
             pdfCount: analysisCount,
             chatCount,
@@ -221,24 +241,29 @@ export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
     const snap = await getDoc(usageRef);
     if (snap.exists()) {
       const data = snap.data();
-      const count =
+      const analysisCount =
         typeof data.analysisCount === "number"
           ? data.analysisCount
           : typeof data.pdfCount === "number"
           ? data.pdfCount
           : 0;
       const chatCount = typeof data.chatCount === "number" ? data.chatCount : 0;
+      const count =
+        typeof data.count === "number"
+          ? data.count
+          : analysisCount + chatCount;
       return {
         uid,
         date: today,
-        analysisCount: count,
-        pdfCount: count,
+        count,
+        analysisCount,
+        pdfCount: analysisCount,
         chatCount,
         maxAnalysis: DAILY_PDF_LIMIT,
         maxPdf: DAILY_PDF_LIMIT,
         maxChat: DAILY_CHAT_LIMIT,
-        analysisRemaining: Math.max(0, DAILY_PDF_LIMIT - count),
-        pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - count),
+        analysisRemaining: Math.max(0, DAILY_PDF_LIMIT - analysisCount),
+        pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - analysisCount),
         chatRemaining: Math.max(0, DAILY_CHAT_LIMIT - chatCount),
       };
     }
@@ -249,6 +274,7 @@ export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
   return {
     uid,
     date: today,
+    count: 0,
     analysisCount: 0,
     pdfCount: 0,
     chatCount: 0,

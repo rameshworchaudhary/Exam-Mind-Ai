@@ -1,12 +1,13 @@
 // app/api/ai/generate-notes/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { generateNotes } from "@/services/ai";
-import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
+import { checkServerDailyUsage, incrementServerDailyUsage, getVerifiedUid } from "@/services/usage";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { subject, topic, noteType, uid } = body;
+    const { subject, topic, noteType } = body;
+    const uid = await getVerifiedUid(req, body.uid);
 
     if (!subject || !topic) {
       return NextResponse.json(
@@ -35,6 +36,14 @@ export async function POST(req: NextRequest) {
 
     // 2. RUN AI NOTES GENERATOR (Powered by Groq)
     const result = await generateNotes(topic, subject, noteType || "short");
+
+    // Ensure AI response is valid before consuming usage quota
+    if (!result || !result.content || result.content.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Failed to generate comprehensive notes. Please try again." },
+        { status: 500 }
+      );
+    }
 
     // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
     let usageInfo = null;
@@ -68,3 +77,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

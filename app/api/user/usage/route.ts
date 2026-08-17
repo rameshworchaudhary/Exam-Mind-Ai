@@ -1,15 +1,18 @@
 // app/api/user/usage/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getServerDailyUsage } from "@/services/usage";
+import { getServerDailyUsage, getVerifiedUid } from "@/services/usage";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const uid = searchParams.get("uid") || "anonymous";
+    const paramUid = searchParams.get("uid");
 
-    const usage = await getServerDailyUsage(uid);
+    const verifiedUid = await getVerifiedUid(req, paramUid || undefined);
+    const targetUid = verifiedUid || paramUid || "anonymous";
+
+    const usage = await getServerDailyUsage(targetUid);
     return NextResponse.json({
       success: true,
       ...usage,
@@ -23,3 +26,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

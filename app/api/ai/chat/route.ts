@@ -1,12 +1,13 @@
 // app/api/ai/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { chatWithAI } from "@/services/ai";
-import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
+import { checkServerDailyUsage, incrementServerDailyUsage, getVerifiedUid } from "@/services/usage";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { messages, subject, uid } = body;
+    const { messages, subject } = body;
+    const uid = await getVerifiedUid(req, body.uid);
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
@@ -35,6 +36,14 @@ export async function POST(req: NextRequest) {
 
     // 2. RUN AI CHAT (Powered by Groq)
     const reply = await chatWithAI(messages, subject);
+
+    // Ensure AI response is valid before consuming usage quota
+    if (!reply || typeof reply !== "string" || reply.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Failed to generate AI response. Please try again." },
+        { status: 500 }
+      );
+    }
 
     // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
     let usageInfo = null;
@@ -67,3 +76,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

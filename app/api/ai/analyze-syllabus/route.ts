@@ -1,7 +1,7 @@
 // app/api/ai/analyze-syllabus/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeSyllabus } from "@/services/ai";
-import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
+import { checkServerDailyUsage, incrementServerDailyUsage, getVerifiedUid } from "@/services/usage";
 import pdfParse from "pdf-parse";
 
 export const runtime = "nodejs";
@@ -78,6 +78,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const verifiedUid = await getVerifiedUid(req, uid || undefined);
+    uid = verifiedUid || uid;
+
     // 3. CHECK DAILY USAGE LIMIT (5 PDF/Syllabus analyses per day)
     if (uid) {
       const limitCheck = await checkServerDailyUsage(uid, "pdf");
@@ -106,6 +109,14 @@ export async function POST(req: NextRequest) {
 
     // 5. RUN AI ANALYSIS (Powered by NVIDIA Nemotron)
     const result = await analyzeSyllabus(text.slice(0, 5000), subject);
+
+    // Ensure AI result is valid before consuming usage quota
+    if (!result || !result.units || !Array.isArray(result.units) || result.units.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Failed to parse and structure syllabus topics. Please try again." },
+        { status: 500 }
+      );
+    }
 
     // 6. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
     let usageInfo = null;

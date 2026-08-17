@@ -49,6 +49,7 @@ interface AuthContextType {
 
 const defaultDailyUsage: DailyUsageData = {
   date: new Date().toISOString().split("T")[0],
+  count: 0,
   analysisCount: 0,
   pdfCount: 0,
   chatCount: 0,

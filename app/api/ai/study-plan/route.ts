@@ -1,12 +1,13 @@
 // app/api/ai/study-plan/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { generateStudyPlan } from "@/services/ai";
-import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
+import { checkServerDailyUsage, incrementServerDailyUsage, getVerifiedUid } from "@/services/usage";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { examDate, subjects, preparationLevel, dailyHours, uid } = body;
+    const { examDate, subjects, preparationLevel, dailyHours } = body;
+    const uid = await getVerifiedUid(req, body.uid);
 
     if (!examDate || !subjects || !Array.isArray(subjects) || subjects.length === 0) {
       return NextResponse.json(
@@ -41,6 +42,14 @@ export async function POST(req: NextRequest) {
       dailyHours: Number(dailyHours) || 4,
     });
 
+    // Ensure AI response is valid before consuming usage quota
+    if (!result || !result.dailyPlan || !Array.isArray(result.dailyPlan) || result.dailyPlan.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Failed to generate comprehensive study plan. Please try again." },
+        { status: 500 }
+      );
+    }
+
     // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
     let usageInfo = null;
     if (uid) {
@@ -72,3 +81,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

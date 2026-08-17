@@ -1,11 +1,13 @@
 // app/api/ai/generate-handwriting/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { generateHandwrittenHTML } from "@/services/handwriting";
+import { checkServerDailyUsage, incrementServerDailyUsage, getVerifiedUid } from "@/services/usage";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { question, answer, studentName, subject, inkColor } = body;
+    const uid = await getVerifiedUid(req, body.uid);
 
     if (!question || !answer) {
       return NextResponse.json(
@@ -14,6 +16,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 1. CHECK DAILY USAGE LIMIT (35 AI uses per day)
+    if (uid) {
+      const limitCheck = await checkServerDailyUsage(uid, "chat");
+      if (!limitCheck.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Daily limit reached! You have reached your limit of ${limitCheck.limit} AI uses for today. Please try again tomorrow.`,
+            limitReached: true,
+            current: limitCheck.current,
+            limit: limitCheck.limit,
+            remaining: limitCheck.remaining,
+          },
+          { status: 429 }
+        );
+      }
+    }
+
+    // 2. RUN HANDWRITING GENERATION
     const html = generateHandwrittenHTML(
       answer,
       studentName || "Student",
@@ -22,10 +43,31 @@ export async function POST(req: NextRequest) {
       { inkColor: inkColor || "#1a3a6b" }
     );
 
+    // Ensure handwriting HTML is valid before consuming usage quota
+    if (!html || typeof html !== "string" || html.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Failed to generate handwriting rendering. Please try again." },
+        { status: 500 }
+      );
+    }
+
+    // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL RENDERING
+    let usageInfo = null;
+    if (uid) {
+      usageInfo = await incrementServerDailyUsage(uid, "chat");
+    }
+
     return NextResponse.json({
       success: true,
       html,
       data: { html },
+      usage: usageInfo
+        ? {
+            current: usageInfo.chatCount,
+            limit: usageInfo.maxChat,
+            remaining: usageInfo.chatRemaining,
+          }
+        : undefined,
     });
   } catch (error) {
     console.error("Handwriting generation error:", error);
@@ -37,3 +79,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

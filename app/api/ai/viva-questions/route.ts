@@ -1,12 +1,13 @@
 // app/api/ai/viva-questions/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { generateVivaQuestions } from "@/services/ai";
-import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
+import { checkServerDailyUsage, incrementServerDailyUsage, getVerifiedUid } from "@/services/usage";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { subject, topic, uid } = body;
+    const { subject, topic } = body;
+    const uid = await getVerifiedUid(req, body.uid);
 
     if (!subject || !topic) {
       return NextResponse.json(
@@ -37,6 +38,14 @@ export async function POST(req: NextRequest) {
     // 2. RUN VIVA QUESTIONS GENERATOR (Powered by Groq)
     const result = await generateVivaQuestions(subject, topic);
 
+    // Ensure AI response is valid before consuming usage quota
+    if (!result || !result.questions || !Array.isArray(result.questions) || result.questions.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Failed to generate viva questions. Please try again." },
+        { status: 500 }
+      );
+    }
+
     // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
     let usageInfo = null;
     if (uid) {
@@ -65,3 +74,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

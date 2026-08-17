@@ -1,7 +1,7 @@
 // app/api/ai/predict-performance/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { predictPerformance } from "@/services/ai";
-import { checkServerDailyUsage, incrementServerDailyUsage } from "@/services/usage";
+import { checkServerDailyUsage, incrementServerDailyUsage, getVerifiedUid } from "@/services/usage";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,8 +12,8 @@ export async function POST(req: NextRequest) {
       studyHours,
       syllabusCompletion,
       subjects,
-      uid,
     } = body;
+    const uid = await getVerifiedUid(req, body.uid);
 
     const validSubjects = Array.isArray(subjects) ? subjects.filter(Boolean) : [];
     if (validSubjects.length === 0) {
@@ -50,6 +50,14 @@ export async function POST(req: NextRequest) {
       subjects: validSubjects,
     });
 
+    // Ensure AI response is valid before consuming usage quota
+    if (!result || typeof result.predictedMarks !== "number" || typeof result.passProbability !== "number") {
+      return NextResponse.json(
+        { success: false, error: "Failed to generate performance prediction. Please try again." },
+        { status: 500 }
+      );
+    }
+
     // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
     let usageInfo = null;
     if (uid) {
@@ -84,3 +92,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
