@@ -7,7 +7,6 @@ import { Calendar, Sparkles, Clock, Target, Lightbulb, Plus, X, ArrowRight, Chec
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 import { saveStudyPlan, incrementUserProfileField } from "@/firebase/firestore";
-import { getAuthHeaders } from "@/firebase/auth";
 import { toast } from "sonner";
 
 interface DayTask {
@@ -75,13 +74,9 @@ export default function PlannerPage() {
 
     setLoading(true);
     try {
-      const authHeaders = await getAuthHeaders(user);
       const res = await fetch("/api/ai/study-plan", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           examDate,
           subjects: validSubjects,

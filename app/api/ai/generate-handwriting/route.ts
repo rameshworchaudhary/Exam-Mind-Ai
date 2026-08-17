@@ -7,18 +7,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { question, answer, studentName, subject, inkColor } = body;
-    
-    let uid: string | null = null;
-    try {
-      uid = await getVerifiedUid(req, body.uid);
-    } catch (authError) {
-      const message = authError instanceof Error ? authError.message : "Authentication error";
-      const status = message.includes("UID_MISMATCH") ? 403 : 401;
-      return NextResponse.json(
-        { success: false, error: message },
-        { status }
-      );
-    }
+    const uid = await getVerifiedUid(req, body.uid);
 
     if (!question || !answer) {
       return NextResponse.json(
@@ -28,7 +17,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. CHECK DAILY USAGE LIMIT (35 AI uses per day)
-    if (uid && uid !== "anonymous") {
+    if (uid) {
       const limitCheck = await checkServerDailyUsage(uid, "chat");
       if (!limitCheck.allowed) {
         return NextResponse.json(
@@ -64,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL RENDERING
     let usageInfo = null;
-    if (uid && uid !== "anonymous") {
+    if (uid) {
       usageInfo = await incrementServerDailyUsage(uid, "chat");
     }
 
@@ -90,3 +79,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

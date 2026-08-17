@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth-context";
 import { saveUpload, incrementUserProfileField } from "@/firebase/firestore";
-import { getAuthHeaders } from "@/firebase/auth";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
@@ -79,13 +78,9 @@ export default function SyllabusAnalyzerPage() {
 
       setProgress(60);
 
-      const authHeaders = await getAuthHeaders(user);
       const response = await fetch("/api/ai/analyze-syllabus", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: text.slice(0, 5000),
           subject: subject || "General",

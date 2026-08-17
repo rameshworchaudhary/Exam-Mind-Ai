@@ -7,7 +7,6 @@ import { PenTool, Sparkles, Download, Eye, FileText, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 import { saveAssignment, incrementUserProfileField } from "@/firebase/firestore";
-import { getAuthHeaders } from "@/firebase/auth";
 import { toast } from "sonner";
 
 interface AssignmentData {
@@ -40,13 +39,9 @@ export default function AssignmentsPage() {
     setShowPreview(false);
 
     try {
-      const authHeaders = await getAuthHeaders(user);
       const response = await fetch("/api/ai/generate-assignment", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question,
           subject,
@@ -89,20 +84,15 @@ export default function AssignmentsPage() {
 
     try {
       // Generate handwritten HTML
-      const authHeaders = await getAuthHeaders(user);
       const response = await fetch("/api/ai/generate-handwriting", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question,
           answer: assignment.answer,
           studentName: studentName || userProfile?.displayName || "Student",
           subject,
           inkColor,
-          uid: user?.uid,
         }),
       });
 

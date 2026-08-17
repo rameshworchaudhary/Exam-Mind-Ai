@@ -7,18 +7,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { messages, subject } = body;
-    
-    let uid: string | null = null;
-    try {
-      uid = await getVerifiedUid(req, body.uid);
-    } catch (authError) {
-      const message = authError instanceof Error ? authError.message : "Authentication error";
-      const status = message.includes("UID_MISMATCH") ? 403 : 401;
-      return NextResponse.json(
-        { success: false, error: message },
-        { status }
-      );
-    }
+    const uid = await getVerifiedUid(req, body.uid);
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json(
@@ -28,7 +17,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. CHECK DAILY CHAT LIMIT (35 messages per day)
-    if (uid && uid !== "anonymous") {
+    if (uid) {
       const limitCheck = await checkServerDailyUsage(uid, "chat");
       if (!limitCheck.allowed) {
         return NextResponse.json(
@@ -58,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     // 3. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
     let usageInfo = null;
-    if (uid && uid !== "anonymous") {
+    if (uid) {
       usageInfo = await incrementServerDailyUsage(uid, "chat");
     }
 
@@ -87,3 +76,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

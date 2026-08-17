@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import { saveNote, getUserNotes, incrementUserProfileField } from "@/firebase/firestore";
-import { getAuthHeaders } from "@/firebase/auth";
 import { toast } from "sonner";
 
 const NOTE_TYPES = [
@@ -64,13 +63,9 @@ export default function NotesPage() {
     setSaved(false);
 
     try {
-      const authHeaders = await getAuthHeaders(user);
       const response = await fetch("/api/ai/generate-notes", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subject, topic, noteType, uid: user?.uid }),
       });
 

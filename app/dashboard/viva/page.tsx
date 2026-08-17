@@ -7,7 +7,6 @@ import { Mic, Sparkles, ChevronDown, ChevronUp, HelpCircle, MessageCircle, Arrow
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 import { incrementUserProfileField } from "@/firebase/firestore";
-import { getAuthHeaders } from "@/firebase/auth";
 import { toast } from "sonner";
 
 interface VivaQuestion {
@@ -41,13 +40,9 @@ export default function VivaPage() {
     }
     setLoading(true);
     try {
-      const authHeaders = await getAuthHeaders(user);
       const res = await fetch("/api/ai/viva-questions", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subject, topic, uid: user?.uid }),
       });
       if (!res.ok) throw new Error();

@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const activeUid = targetUid || user?.uid;
     if (activeUid) {
       try {
-        const usage = await getDailyUsage(activeUid, user);
+        const usage = await getDailyUsage(activeUid);
         setDailyUsage(usage);
       } catch (err) {
         console.error("Failed to load daily usage:", err);
@@ -131,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setEmailVerified(true);
         const profile = await getUserProfile(firebaseUser.uid);
         setUserProfile(profile as unknown as UserProfile);
-        const usage = await getDailyUsage(firebaseUser.uid, firebaseUser);
+        const usage = await getDailyUsage(firebaseUser.uid);
         setDailyUsage(usage);
       } catch (error) {
         console.error("Failed to refresh authentication state:", error);

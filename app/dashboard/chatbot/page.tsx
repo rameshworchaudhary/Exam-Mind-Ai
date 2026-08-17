@@ -7,7 +7,6 @@ import { MessageSquare, Send, Bot, User, Trash2, Sparkles, CornerDownLeft } from
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 import { saveChatMessage, incrementUserProfileField } from "@/firebase/firestore";
-import { getAuthHeaders } from "@/firebase/auth";
 import { generateId } from "@/utils";
 import { toast } from "sonner";
 
@@ -71,13 +70,9 @@ export default function ChatbotPage() {
     }
 
     try {
-      const authHeaders = await getAuthHeaders(user);
       const response = await fetch("/api/ai/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [...messages, userMessage]
             .filter((m) => m.id !== "welcome")
