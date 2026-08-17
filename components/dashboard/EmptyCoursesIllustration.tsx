@@ -26,6 +26,7 @@ export function EmptyCoursesIllustration({ className = "w-64 h-64 sm:w-72 sm:h-7
               height={260}
               className="object-contain max-h-full max-w-full rounded-2xl"
               priority
+              referrerPolicy="no-referrer"
               onError={() => setImageError(true)}
             />
           </div>

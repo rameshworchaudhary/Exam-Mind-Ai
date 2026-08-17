@@ -1,5 +1,5 @@
 // services/usage.ts
-// Server-side daily usage tracking and rate limit enforcement using Firebase Admin SDK
+// Server-side daily usage tracking and rate limit enforcement using Firebase Admin SDK ONLY
 import { getAdminFirestore, getAdminAuth, FieldValue } from "@/firebase/admin";
 import { NextRequest } from "next/server";
 
@@ -22,12 +22,6 @@ export interface ServerUsageState {
   chatRemaining: number;
 }
 
-// In-memory atomic store as resilient fallback & fast-sync cache (keyed by `${uid}_${date}`)
-const inMemoryStore = new Map<
-  string,
-  { count: number; analysisCount: number; chatCount: number; updatedAt: number }
->();
-
 export function getTodayDateString(): string {
   const now = new Date();
   const year = now.getUTCFullYear();
@@ -36,43 +30,73 @@ export function getTodayDateString(): string {
   return `${year}-${month}-${day}`;
 }
 
+export interface VerificationResult {
+  uid: string | null;
+  error?: string;
+  statusCode?: number;
+}
+
 /**
- * Extracts and verifies the authenticated Firebase UID from the incoming request.
- * Prioritizes the Authorization Bearer ID Token over the query/body parameter.
+ * Extracts and strictly verifies the Firebase ID token from the Authorization header.
+ * Disallows trusting a client-provided UID without matching token verification.
  */
 export async function getVerifiedUid(
   req: NextRequest,
-  fallbackUid?: string
+  clientUid?: string
 ): Promise<string | null> {
   const authHeader = req.headers.get("authorization");
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const idToken = authHeader.split("Bearer ")[1]?.trim();
-    if (idToken) {
-      try {
-        const adminAuth = getAdminAuth();
-        if (adminAuth) {
-          const decoded = await adminAuth.verifyIdToken(idToken);
-          if (decoded && decoded.uid) {
-            return decoded.uid;
-          }
-        }
-      } catch (err) {
-        console.warn("[Usage Auth] ID token verification notice:", err);
+  const hasAuthHeader = Boolean(authHeader);
+  const isBearer = Boolean(authHeader && authHeader.startsWith("Bearer "));
+  const idToken = isBearer ? authHeader!.split("Bearer ")[1]?.trim() : undefined;
+  const tokenExtracted = Boolean(idToken && idToken.length > 0);
+
+  console.log(`[Auth Diagnostic] Auth header present: ${hasAuthHeader}`);
+  console.log(`[Auth Diagnostic] Bearer token extracted: ${tokenExtracted}`);
+
+  if (tokenExtracted && idToken) {
+    const adminAuth = getAdminAuth();
+    if (!adminAuth) {
+      console.warn("[Auth Diagnostic] Token verification failed: Admin Auth uninitialized");
+      throw new Error("Firebase Admin Auth is not initialized. Check server credentials.");
+    }
+
+    try {
+      const decoded = await adminAuth.verifyIdToken(idToken);
+      if (!decoded || !decoded.uid) {
+        console.warn("[Auth Diagnostic] Token verification failed: Invalid payload");
+        throw new Error("Invalid Firebase ID token payload");
       }
+
+      console.log("[Auth Diagnostic] Token verification: success");
+      console.log("[Auth Diagnostic] Verified UID present: true");
+
+      if (clientUid && clientUid !== "anonymous" && clientUid !== decoded.uid) {
+        throw new Error("UID_MISMATCH: Supplied UID does not match authenticated token UID");
+      }
+
+      return decoded.uid;
+    } catch (verifyErr) {
+      console.warn(
+        "[Auth Diagnostic] Token verification: failure -",
+        verifyErr instanceof Error ? verifyErr.message : "Verification error"
+      );
+      throw verifyErr;
     }
   }
 
-  if (fallbackUid && fallbackUid !== "anonymous") {
-    return fallbackUid;
+  // If no auth header but client explicitly provided a UID, reject spoofing
+  if (clientUid && clientUid !== "anonymous") {
+    console.warn("[Auth Diagnostic] Rejected unauthenticated request supplying a UID");
+    throw new Error("UNAUTHORIZED: Client UID supplied without valid Authorization Bearer token");
   }
 
   return null;
 }
 
 /**
- * Get the current daily usage for a user from Firestore via Firebase Admin SDK.
- * Reads the existing document for that UID and current date.
- * NEVER initializes existing counts back to zero.
+ * Get current daily usage strictly from Firestore via Firebase Admin SDK.
+ * Reads dailyUsage/{uid}_{YYYY-MM-DD}.
+ * Does not reset counts on subsequent requests or logins.
  */
 export async function getServerDailyUsage(uid: string): Promise<ServerUsageState> {
   const today = getTodayDateString();
@@ -94,62 +118,32 @@ export async function getServerDailyUsage(uid: string): Promise<ServerUsageState
   }
 
   const docId = `${uid}_${today}`;
+  const adminDb = getAdminFirestore();
+  if (!adminDb) {
+    throw new Error("Firebase Admin Firestore is not initialized");
+  }
+
   let count = 0;
   let analysisCount = 0;
   let chatCount = 0;
 
-  const adminDb = getAdminFirestore();
-  if (adminDb) {
-    try {
-      const docRef = adminDb.collection("dailyUsage").doc(docId);
-      const snapshot = await docRef.get();
+  const docRef = adminDb.collection("dailyUsage").doc(docId);
+  const snapshot = await docRef.get();
 
-      if (snapshot.exists) {
-        const data = snapshot.data();
-        if (data) {
-          analysisCount =
-            typeof data.analysisCount === "number"
-              ? data.analysisCount
-              : typeof data.pdfCount === "number"
-              ? data.pdfCount
-              : 0;
-          chatCount = typeof data.chatCount === "number" ? data.chatCount : 0;
-          count =
-            typeof data.count === "number"
-              ? data.count
-              : analysisCount + chatCount;
-
-          inMemoryStore.set(docId, {
-            count,
-            analysisCount,
-            chatCount,
-            updatedAt: Date.now(),
-          });
-          console.log(`[Usage] Read dailyUsage/${docId} from Firestore: count=${count}, analysis=${analysisCount}, chat=${chatCount}`);
-        }
-      } else {
-        const cached = inMemoryStore.get(docId);
-        if (cached) {
-          count = cached.count;
-          analysisCount = cached.analysisCount;
-          chatCount = cached.chatCount;
-        }
-      }
-    } catch (err) {
-      console.error(`[Usage] Failed to read dailyUsage/${docId} from Firestore:`, err);
-      const cached = inMemoryStore.get(docId);
-      if (cached) {
-        count = cached.count;
-        analysisCount = cached.analysisCount;
-        chatCount = cached.chatCount;
-      }
-    }
-  } else {
-    const cached = inMemoryStore.get(docId);
-    if (cached) {
-      count = cached.count;
-      analysisCount = cached.analysisCount;
-      chatCount = cached.chatCount;
+  if (snapshot.exists) {
+    const data = snapshot.data();
+    if (data) {
+      analysisCount =
+        typeof data.analysisCount === "number"
+          ? data.analysisCount
+          : typeof data.pdfCount === "number"
+          ? data.pdfCount
+          : 0;
+      chatCount = typeof data.chatCount === "number" ? data.chatCount : 0;
+      count =
+        typeof data.count === "number"
+          ? data.count
+          : analysisCount + chatCount;
     }
   }
 
@@ -170,9 +164,8 @@ export async function getServerDailyUsage(uid: string): Promise<ServerUsageState
 }
 
 /**
- * Check if the user has available quota for the given operation type.
+ * Check if the user has available daily quota.
  * Does NOT increment quota.
- * Returns allowed: false if analysisCount >= 5 or chatCount >= 35.
  */
 export async function checkServerDailyUsage(
   uid: string,
@@ -242,7 +235,7 @@ export async function checkServerDailyUsage(
 }
 
 /**
- * Atomically increment daily usage in Firestore using Firebase Admin SDK with FieldValue.increment(1).
+ * Atomically increments daily usage strictly in Firestore using Firebase Admin SDK FieldValue.increment(1).
  * ONLY call this function after the AI request has successfully returned a valid response!
  */
 export async function incrementServerDailyUsage(
@@ -262,88 +255,64 @@ export async function incrementServerDailyUsage(
   const incrementChat = isChat || isBoth;
   const incrementPdf = isPdf || isBoth;
 
-  console.log(`[Usage] UID: ${uid}`);
-  console.log(`[Usage] Date: ${today}`);
-  console.log(`[Usage] Writing document: dailyUsage/${docId} (type: ${type}) with FieldValue.increment(1)`);
-
   const adminDb = getAdminFirestore();
-  if (adminDb) {
-    try {
-      const docRef = adminDb.collection("dailyUsage").doc(docId);
-      const userRef = adminDb.collection("users").doc(uid);
-
-      // Construct atomic increment payload with FieldValue.increment(1)
-      const updatePayload: Record<string, unknown> = {
-        uid,
-        date: today,
-        count: FieldValue.increment(1),
-        updatedAt: FieldValue.serverTimestamp(),
-      };
-
-      if (incrementChat) {
-        updatePayload.chatCount = FieldValue.increment(1);
-      }
-      if (incrementPdf) {
-        updatePayload.analysisCount = FieldValue.increment(1);
-        updatePayload.pdfCount = FieldValue.increment(1);
-      }
-
-      // Atomic set with merge ensures document creation and atomic counter increments in one operation
-      await docRef.set(
-        {
-          ...updatePayload,
-          createdAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      // Atomically increment the user's aggregate aiUsageCount on users/{uid}
-      await userRef.set(
-        {
-          aiUsageCount: FieldValue.increment(1),
-          lastActiveDate: new Date().toISOString(),
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      console.log(`[Usage] Atomic FieldValue.increment(1) write successful for dailyUsage/${docId}`);
-
-      // Update in-memory store
-      let currentMemory = inMemoryStore.get(docId);
-      if (!currentMemory) {
-        currentMemory = { count: 0, analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
-      }
-      currentMemory.count += 1;
-      if (incrementChat) currentMemory.chatCount += 1;
-      if (incrementPdf) currentMemory.analysisCount += 1;
-      currentMemory.updatedAt = Date.now();
-      inMemoryStore.set(docId, currentMemory);
-    } catch (writeErr) {
-      console.error(`[Usage] Firestore atomic increment error for dailyUsage/${docId}:`, writeErr);
-      // Resilient fallback to memory store
-      let currentMemory = inMemoryStore.get(docId);
-      if (!currentMemory) {
-        currentMemory = { count: 0, analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
-      }
-      currentMemory.count += 1;
-      if (incrementChat) currentMemory.chatCount += 1;
-      if (incrementPdf) currentMemory.analysisCount += 1;
-      currentMemory.updatedAt = Date.now();
-      inMemoryStore.set(docId, currentMemory);
-    }
-  } else {
-    console.warn(`[Usage] Firebase Admin Firestore not initialized, memory store updated for ${docId}`);
-    let currentMemory = inMemoryStore.get(docId);
-    if (!currentMemory) {
-      currentMemory = { count: 0, analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
-    }
-    currentMemory.count += 1;
-    if (incrementChat) currentMemory.chatCount += 1;
-    if (incrementPdf) currentMemory.analysisCount += 1;
-    currentMemory.updatedAt = Date.now();
-    inMemoryStore.set(docId, currentMemory);
+  if (!adminDb) {
+    throw new Error("Firebase Admin Firestore is not initialized");
   }
 
+  const docRef = adminDb.collection("dailyUsage").doc(docId);
+  const userRef = adminDb.collection("users").doc(uid);
+
+  // Construct atomic increment payload with FieldValue.increment(1)
+  const updatePayload: Record<string, unknown> = {
+    uid,
+    date: today,
+    count: FieldValue.increment(1),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  if (incrementChat) {
+    updatePayload.chatCount = FieldValue.increment(1);
+  }
+  if (incrementPdf) {
+    updatePayload.analysisCount = FieldValue.increment(1);
+    updatePayload.pdfCount = FieldValue.increment(1);
+  }
+
+  console.log(`[Usage] UID: ${uid}`);
+  console.log(`[Usage] Date: ${today}`);
+  console.log(`[Usage] Writing document: dailyUsage/${docId}`);
+
+  try {
+    // Atomic set with merge ensures document creation and atomic counter increments in Firestore
+    await docRef.set(
+      {
+        ...updatePayload,
+        createdAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    // Atomically increment the user's aggregate aiUsageCount on users/{uid}
+    await userRef.set(
+      {
+        aiUsageCount: FieldValue.increment(1),
+        lastActiveDate: new Date().toISOString(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    console.log("[Usage] Firestore write successful");
+  } catch (writeErr) {
+    const errorCode = (writeErr as { code?: string })?.code || "UNKNOWN";
+    const errorMessage = writeErr instanceof Error ? writeErr.message : "Firestore write failed";
+    console.error("[Usage] Firestore write failed");
+    console.error(`[Usage] Error code: ${errorCode}`);
+    console.error(`[Usage] Error message: ${errorMessage}`);
+    throw writeErr;
+  }
+
+  // Return authoritative state directly from Firestore
   return getServerDailyUsage(uid);
 }

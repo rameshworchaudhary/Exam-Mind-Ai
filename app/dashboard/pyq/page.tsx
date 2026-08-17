@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/lib/auth-context";
 import { saveUpload, savePrediction, incrementUserProfileField } from "@/firebase/firestore";
+import { getAuthHeaders } from "@/firebase/auth";
 import { toast } from "sonner";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { getProbabilityColor } from "@/utils";
@@ -66,9 +67,13 @@ export default function PYQPage() {
 
       setUploadProgress(50);
 
+      const authHeaders = await getAuthHeaders(user);
       const response = await fetch("/api/ai/analyze-pyq", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
         body: JSON.stringify({
           text: extractedText.slice(0, 3000),
           subject: subject || "General",

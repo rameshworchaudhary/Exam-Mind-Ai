@@ -17,6 +17,8 @@ import {
   runTransaction,
 } from "firebase/firestore";
 import app, { auth } from "./config";
+import { getAuthHeaders } from "./auth";
+import type { User } from "firebase/auth";
 
 export const db = getFirestore(app);
 
@@ -154,7 +156,7 @@ export function getTodayDateString(): string {
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
 }
 
-export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
+export async function getDailyUsage(uid: string, explicitUser?: User | null): Promise<DailyUsageData> {
   const today = getTodayDateString();
   if (!uid || uid === "anonymous") {
     return {
@@ -176,17 +178,7 @@ export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
   // 1. Fetch authoritative server-side usage from /api/user/usage if in browser
   if (typeof window !== "undefined") {
     try {
-      const headers: Record<string, string> = {};
-      if (auth?.currentUser) {
-        try {
-          const token = await auth.currentUser.getIdToken();
-          if (token) {
-            headers["Authorization"] = `Bearer ${token}`;
-          }
-        } catch {
-          // ignore token fetch error
-        }
-      }
+      const headers = await getAuthHeaders(explicitUser);
       const res = await fetch(`/api/user/usage?uid=${encodeURIComponent(uid)}`, {
         cache: "no-store",
         headers,

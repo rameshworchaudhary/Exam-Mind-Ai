@@ -7,6 +7,7 @@ import { BarChart3, Sparkles, TrendingUp, AlertTriangle, CheckCircle2, Plus, X, 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth-context";
 import { savePrediction, incrementUserProfileField } from "@/firebase/firestore";
+import { getAuthHeaders } from "@/firebase/auth";
 import { toast } from "sonner";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Tooltip } from "recharts";
 import { getGradeColor, getProbabilityColor } from "@/utils";
@@ -49,9 +50,13 @@ export default function PredictorPage() {
     }
     setLoading(true);
     try {
+      const authHeaders = await getAuthHeaders(user);
       const res = await fetch("/api/ai/predict-performance", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
         body: JSON.stringify({
           attendance,
           internalMarks,

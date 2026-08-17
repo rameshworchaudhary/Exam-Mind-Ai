@@ -11,21 +11,21 @@ export async function POST(req: NextRequest) {
     const contentType = req.headers.get("content-type") || "";
     let text = "";
     let subject = "General";
-    let uid = "";
+    let requestedUid = "";
 
     // 1. JSON REQUEST
     if (contentType.includes("application/json")) {
       const body = await req.json();
       text = body?.text || "";
       subject = body?.subject || "General";
-      uid = body?.uid || "";
+      requestedUid = body?.uid || "";
     }
     // 2. FORM DATA REQUEST (PDF or TXT upload)
     else if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
       const file = formData.get("file") as File | null;
       subject = (formData.get("subject") as string) || "General";
-      uid = (formData.get("uid") as string) || "";
+      requestedUid = (formData.get("uid") as string) || "";
 
       if (!file) {
         return NextResponse.json(
@@ -78,11 +78,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const verifiedUid = await getVerifiedUid(req, uid || undefined);
-    uid = verifiedUid || uid;
+    let uid: string | null = null;
+    try {
+      uid = await getVerifiedUid(req, requestedUid || undefined);
+    } catch (authError) {
+      const message = authError instanceof Error ? authError.message : "Authentication error";
+      const status = message.includes("UID_MISMATCH") ? 403 : 401;
+      return NextResponse.json(
+        { success: false, error: message },
+        { status }
+      );
+    }
 
     // 3. CHECK DAILY USAGE LIMIT (5 PDF/Syllabus analyses per day)
-    if (uid) {
+    if (uid && uid !== "anonymous") {
       const limitCheck = await checkServerDailyUsage(uid, "pdf");
       if (!limitCheck.allowed) {
         return NextResponse.json(
@@ -120,7 +129,7 @@ export async function POST(req: NextRequest) {
 
     // 6. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
     let usageInfo = null;
-    if (uid) {
+    if (uid && uid !== "anonymous") {
       usageInfo = await incrementServerDailyUsage(uid, "pdf");
     }
 
