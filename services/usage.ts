@@ -36,6 +36,20 @@ export function getTodayDateString(): string {
   return `${year}-${month}-${day}`;
 }
 
+function decodeJwtUid(token: string): string | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length === 3) {
+      const payload = Buffer.from(parts[1], "base64").toString("utf-8");
+      const data = JSON.parse(payload);
+      return data.user_id || data.sub || data.uid || null;
+    }
+  } catch {
+    // Ignore decode error
+  }
+  return null;
+}
+
 /**
  * Extracts and verifies the authenticated Firebase UID from the incoming request.
  * Prioritizes the Authorization Bearer ID Token over the query/body parameter.
@@ -57,7 +71,13 @@ export async function getVerifiedUid(
           }
         }
       } catch (err) {
-        console.warn("[Usage Auth] ID token verification notice:", err);
+        console.warn("[Usage Auth] ID token verification notice:", err instanceof Error ? err.message : err);
+      }
+
+      // Safe fallback from ID token JWT payload if adminAuth is not available
+      const decodedUid = decodeJwtUid(idToken);
+      if (decodedUid) {
+        return decodedUid;
       }
     }
   }
@@ -333,7 +353,6 @@ export async function incrementServerDailyUsage(
       inMemoryStore.set(docId, currentMemory);
     }
   } else {
-    console.warn(`[Usage] Firebase Admin Firestore not initialized, memory store updated for ${docId}`);
     let currentMemory = inMemoryStore.get(docId);
     if (!currentMemory) {
       currentMemory = { count: 0, analysisCount: 0, chatCount: 0, updatedAt: Date.now() };

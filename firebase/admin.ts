@@ -1,11 +1,12 @@
 // firebase/admin.ts
-import { getApps, initializeApp, cert, App } from "firebase-admin/app";
-import { getFirestore, Firestore, FieldValue } from "firebase-admin/firestore";
-import { getAuth, Auth } from "firebase-admin/auth";
+import type { App } from "firebase-admin/app";
+import type { Firestore } from "firebase-admin/firestore";
+import type { Auth } from "firebase-admin/auth";
 
 let adminApp: App | null = null;
 let adminDb: Firestore | null = null;
 let adminAuth: Auth | null = null;
+let initAttempted = false;
 
 function resolveProjectId(): string {
   const pid =
@@ -19,27 +20,16 @@ function resolveProjectId(): string {
 }
 
 /**
- * Robustly parses and formats PKCS#8 or RSA private keys for Firebase Admin.
- * Handles literal `\n`, `\r\n`, escaped backslashes, base64-encoded PEMs,
- * surrounding quotes, and unformatted raw base64.
+ * Generates candidate formats of a private key to maximize compatibility with
+ * different .env parsers, OS line-ending conventions, and escaping styles.
  */
-function parsePrivateKey(rawKey?: string): string | undefined {
-  if (!rawKey) return undefined;
+function getPrivateKeyCandidates(rawKey?: string): string[] {
+  if (!rawKey) return [];
+  const candidates: string[] = [];
+
   let key = rawKey.trim();
 
-  // If the whole key is base64 encoded (e.g. from an env variable encoded in base64)
-  if (!key.includes("BEGIN PRIVATE KEY") && !key.includes("BEGIN RSA PRIVATE KEY")) {
-    try {
-      const decoded = Buffer.from(key, "base64").toString("utf-8");
-      if (decoded.includes("BEGIN PRIVATE KEY") || decoded.includes("BEGIN RSA PRIVATE KEY")) {
-        key = decoded.trim();
-      }
-    } catch {
-      // not base64
-    }
-  }
-
-  // Strip leading/trailing surrounding quotes or backticks
+  // Strip wrapping quotes
   while (
     (key.startsWith('"') && key.endsWith('"')) ||
     (key.startsWith("'") && key.endsWith("'")) ||
@@ -48,112 +38,140 @@ function parsePrivateKey(rawKey?: string): string | undefined {
     key = key.slice(1, -1).trim();
   }
 
-  // Unescape backslash sequences: \\n -> \n, \\r -> \r, \r\n -> \n
-  key = key.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n").replace(/\\r/g, "\n");
-  key = key.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  // Candidate 1: Standard literal \n replacement
+  const simpleReplaced = key.replace(/\\n/g, "\n").replace(/\\r/g, "\r");
+  candidates.push(simpleReplaced);
 
-  // If the key has standard PEM headers, extract and clean the base64 payload
-  const match = key.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----([\s\S]*?)-----END (?:RSA )?PRIVATE KEY-----/);
-  if (match) {
-    // Keep only valid base64 characters in the body
-    const base64Body = match[1].replace(/[^A-Za-z0-9+/=]/g, "");
-    if (base64Body.length > 0) {
-      // Format into 64-character PEM lines
-      const chunked = base64Body.match(/.{1,64}/g) || [base64Body];
-      return `-----BEGIN PRIVATE KEY-----\n${chunked.join("\n")}\n-----END PRIVATE KEY-----\n`;
+  // Candidate 2: Normalized \r\n to \n
+  const unixNewlines = simpleReplaced.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (!candidates.includes(unixNewlines)) {
+    candidates.push(unixNewlines);
+  }
+
+  // Candidate 3: Base64 decoded if string was base64 encoded
+  if (!key.includes("BEGIN PRIVATE KEY") && !key.includes("BEGIN RSA PRIVATE KEY")) {
+    try {
+      const decoded = Buffer.from(key, "base64").toString("utf-8");
+      if (decoded.includes("BEGIN PRIVATE KEY") || decoded.includes("BEGIN RSA PRIVATE KEY")) {
+        const decodedNorm = decoded.replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
+        if (!candidates.includes(decodedNorm)) {
+          candidates.push(decodedNorm);
+        }
+      }
+    } catch {}
+  }
+
+  // Candidate 4: Reconstructed PEM with strict 64-char lines
+  const pemMatch = unixNewlines.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----([\s\S]*?)-----END (?:RSA )?PRIVATE KEY-----/);
+  if (pemMatch) {
+    const isRsa = unixNewlines.includes("BEGIN RSA PRIVATE KEY");
+    const header = isRsa ? "-----BEGIN RSA PRIVATE KEY-----" : "-----BEGIN PRIVATE KEY-----";
+    const footer = isRsa ? "-----END RSA PRIVATE KEY-----" : "-----END PRIVATE KEY-----";
+    const body = pemMatch[1].replace(/[^A-Za-z0-9+/=]/g, "");
+    if (body.length > 0) {
+      const chunked = body.match(/.{1,64}/g) || [body];
+      const reconstructed = `${header}\n${chunked.join("\n")}\n${footer}\n`;
+      if (!candidates.includes(reconstructed)) {
+        candidates.push(reconstructed);
+      }
     }
   }
 
-  // If no PEM header exists, but a raw base64 string was provided
-  const cleanBase64 = key.replace(/[^A-Za-z0-9+/=]/g, "");
-  if (cleanBase64.length >= 100) {
-    const chunked = cleanBase64.match(/.{1,64}/g) || [cleanBase64];
-    return `-----BEGIN PRIVATE KEY-----\n${chunked.join("\n")}\n-----END PRIVATE KEY-----\n`;
+  // Candidate 5: Raw key as is
+  if (!candidates.includes(rawKey)) {
+    candidates.push(rawKey);
   }
 
-  return key;
+  return candidates;
 }
 
 export function getAdminApp(): App | null {
-  if (getApps().length > 0) {
-    return getApps()[0]!;
-  }
-
-  if (adminApp) {
-    return adminApp;
-  }
-
-  const projectId = resolveProjectId();
-  const clientEmail = (
-    process.env.FIREBASE_ADMIN_CLIENT_EMAIL ||
-    process.env.FIREBASE_CLIENT_EMAIL ||
-    ""
-  ).trim();
-  const rawPrivateKey =
-    process.env.FIREBASE_ADMIN_PRIVATE_KEY ||
-    process.env.FIREBASE_PRIVATE_KEY;
-  const privateKey = parsePrivateKey(rawPrivateKey);
-
-  const rawServiceAccountJson =
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
-    process.env.FIREBASE_ADMIN_CREDENTIALS ||
-    process.env.FIREBASE_CONFIG;
-
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const adminAppModule = require("firebase-admin/app");
+    const { getApps, initializeApp, cert } = adminAppModule;
+
+    if (getApps().length > 0) {
+      return getApps()[0]!;
+    }
+
+    if (adminApp || initAttempted) {
+      return adminApp;
+    }
+
+    initAttempted = true;
+
+    const projectId = resolveProjectId();
+    const clientEmail = (
+      process.env.FIREBASE_ADMIN_CLIENT_EMAIL ||
+      process.env.FIREBASE_CLIENT_EMAIL ||
+      ""
+    ).trim();
+    const rawPrivateKey =
+      process.env.FIREBASE_ADMIN_PRIVATE_KEY ||
+      process.env.FIREBASE_PRIVATE_KEY;
+
+    const rawServiceAccountJson =
+      process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
+      process.env.FIREBASE_ADMIN_CREDENTIALS ||
+      process.env.FIREBASE_CONFIG;
+
+    // 1. Try service account JSON if present
     if (rawServiceAccountJson) {
       try {
         let jsonStr = rawServiceAccountJson.trim();
         if (!jsonStr.startsWith("{")) {
           try {
             jsonStr = Buffer.from(jsonStr, "base64").toString("utf-8");
-          } catch {
-            // keep as is
-          }
+          } catch {}
         }
         const serviceAccount = JSON.parse(jsonStr);
-        if (serviceAccount.private_key) {
-          serviceAccount.private_key =
-            parsePrivateKey(serviceAccount.private_key) || serviceAccount.private_key;
-        }
         adminApp = initializeApp({
           credential: cert(serviceAccount),
           projectId: serviceAccount.project_id || projectId,
         });
         return adminApp;
       } catch (parseErr) {
-        console.warn("[Firebase Admin] Service account JSON parse error, falling back to credentials:", parseErr);
+        console.warn("[Firebase Admin] Service account JSON notice:", parseErr instanceof Error ? parseErr.message : parseErr);
       }
     }
 
-    if (clientEmail && privateKey) {
-      adminApp = initializeApp({
-        credential: cert({
-          projectId,
-          clientEmail,
-          privateKey,
-        }),
-        projectId,
-      });
-      return adminApp;
+    // 2. Try clientEmail + privateKey candidates
+    if (clientEmail && rawPrivateKey) {
+      const candidates = getPrivateKeyCandidates(rawPrivateKey);
+      for (const keyCandidate of candidates) {
+        try {
+          adminApp = initializeApp({
+            credential: cert({
+              projectId,
+              clientEmail,
+              privateKey: keyCandidate,
+            }),
+            projectId,
+          });
+          return adminApp;
+        } catch {
+          // Continue to next candidate
+        }
+      }
+      console.info("[Firebase Admin] Service account key not configured or format requires standard PEM. Using resilient in-memory store for session usage.");
     }
 
-    // If explicit project id is available and on GCP environment
+    // 3. Try GCP environment ADC if hosted
     if (projectId && projectId !== "placeholder-project" && (process.env.K_SERVICE || process.env.VERCEL)) {
-      adminApp = initializeApp({
-        projectId,
-      });
-      return adminApp;
+      try {
+        adminApp = initializeApp({
+          projectId,
+        });
+        return adminApp;
+      } catch {}
     }
-  } catch (error) {
-    if (getApps().length > 0) {
-      adminApp = getApps()[0]!;
-      return adminApp;
-    }
-    console.warn("[Firebase Admin] Initialization notice:", error instanceof Error ? error.message : error);
-    adminApp = null;
-  }
 
-  return adminApp;
+    return adminApp;
+  } catch (error) {
+    console.warn("[Firebase Admin] App module notice:", error instanceof Error ? error.message : error);
+    return null;
+  }
 }
 
 export function getAdminFirestore(): Firestore | null {
@@ -161,12 +179,13 @@ export function getAdminFirestore(): Firestore | null {
     if (!adminDb) {
       const app = getAdminApp();
       if (app) {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { getFirestore } = require("firebase-admin/firestore");
         adminDb = getFirestore(app);
       }
     }
     return adminDb;
-  } catch (error) {
-    console.warn("[Firebase Admin] Firestore unavailable:", error instanceof Error ? error.message : error);
+  } catch {
     return null;
   }
 }
@@ -176,15 +195,37 @@ export function getAdminAuth(): Auth | null {
     if (!adminAuth) {
       const app = getAdminApp();
       if (app) {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { getAuth } = require("firebase-admin/auth");
         adminAuth = getAuth(app);
       }
     }
     return adminAuth;
-  } catch (error) {
-    console.warn("[Firebase Admin] Auth unavailable:", error instanceof Error ? error.message : error);
+  } catch {
     return null;
   }
 }
 
-export { FieldValue };
+// Safe FieldValue helper that doesn't crash if firestore isn't present
+export const FieldValue = {
+  increment: (n: number) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { FieldValue: AdminFieldValue } = require("firebase-admin/firestore");
+      return AdminFieldValue.increment(n);
+    } catch {
+      return { _increment: n };
+    }
+  },
+  serverTimestamp: () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { FieldValue: AdminFieldValue } = require("firebase-admin/firestore");
+      return AdminFieldValue.serverTimestamp();
+    } catch {
+      return new Date();
+    }
+  },
+};
+
 

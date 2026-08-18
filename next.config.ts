@@ -2,12 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  serverExternalPackages: [
-    "firebase-admin",
-    "@google-cloud/firestore",
-    "jwks-rsa",
-    "jose",
-  ],
+  serverExternalPackages: ["firebase-admin"],
   // Allow Cloud Run / AI Studio preview origins in development mode
   allowedDevOrigins: [
     "*.run.app",
