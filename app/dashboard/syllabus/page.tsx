@@ -78,9 +78,15 @@ export default function SyllabusAnalyzerPage() {
 
       setProgress(60);
 
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      try {
+        const token = await user.getIdToken();
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+      } catch {}
+
       const response = await fetch("/api/ai/analyze-syllabus", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           text: text.slice(0, 5000),
           subject: subject || "General",
@@ -88,8 +94,11 @@ export default function SyllabusAnalyzerPage() {
         }),
       });
 
-      const data = await response.json();
-      console.log("Syllabus API Response:", data);
+      let data: any = null;
+      try {
+        const resText = await response.text();
+        data = resText ? JSON.parse(resText) : null;
+      } catch {}
 
       if (!response.ok) {
         throw new Error(data?.error || "Analysis failed");

@@ -70,9 +70,21 @@ export default function ChatbotPage() {
     }
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+        } catch {
+          // Token retrieval failed, fallback to payload uid
+        }
+      }
+
       const response = await fetch("/api/ai/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           messages: [...messages, userMessage]
             .filter((m) => m.id !== "welcome")
@@ -82,12 +94,24 @@ export default function ChatbotPage() {
         }),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || "Chat failed");
+      let data: any = null;
+      try {
+        const text = await response.text();
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        // Response was not JSON
       }
 
-      const reply = data.reply || "No response received";
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            (response.status === 429
+              ? "Daily chat limit reached! Please try again tomorrow."
+              : `Service temporarily unavailable (${response.status}). Please try again.`)
+        );
+      }
+
+      const reply = data?.reply || data?.data?.reply || "No response received";
 
       const assistantMessage: Message = {
         id: generateId(),

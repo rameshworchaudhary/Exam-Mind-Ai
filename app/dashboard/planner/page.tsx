@@ -74,9 +74,17 @@ export default function PlannerPage() {
 
     setLoading(true);
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+        } catch {}
+      }
+
       const res = await fetch("/api/ai/study-plan", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           examDate,
           subjects: validSubjects,
@@ -85,8 +93,15 @@ export default function PlannerPage() {
           uid: user?.uid,
         }),
       });
-      if (!res.ok) throw new Error();
-      const result: StudyPlan = await res.json();
+
+      let data: any = null;
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : null;
+      } catch {}
+
+      if (!res.ok) throw new Error(data?.error || "Failed to generate study plan.");
+      const result: StudyPlan = data?.data || data;
       setPlan(result);
 
       if (user) {
@@ -100,8 +115,8 @@ export default function PlannerPage() {
         await refreshProfile();
       }
       toast.success("Study plan created!");
-    } catch {
-      toast.error("Failed to generate plan.");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to generate plan.");
     } finally {
       setLoading(false);
     }

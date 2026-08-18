@@ -49,9 +49,17 @@ export default function PredictorPage() {
     }
     setLoading(true);
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+        } catch {}
+      }
+
       const res = await fetch("/api/ai/predict-performance", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           attendance,
           internalMarks,
@@ -61,8 +69,15 @@ export default function PredictorPage() {
           uid: user?.uid,
         }),
       });
-      if (!res.ok) throw new Error();
-      const result: Prediction = await res.json();
+
+      let data: any = null;
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : null;
+      } catch {}
+
+      if (!res.ok) throw new Error(data?.error || "Prediction failed. Please try again.");
+      const result: Prediction = data?.data || data;
       setPrediction(result);
       if (user) {
         await savePrediction(user.uid, { type: "performance", ...result });
@@ -70,8 +85,8 @@ export default function PredictorPage() {
         await refreshProfile();
       }
       toast.success("Performance predicted!");
-    } catch {
-      toast.error("Prediction failed. Try again.");
+    } catch (err: any) {
+      toast.error(err?.message || "Prediction failed. Try again.");
     } finally {
       setLoading(false);
     }

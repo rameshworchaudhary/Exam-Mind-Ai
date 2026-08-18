@@ -39,9 +39,17 @@ export default function AssignmentsPage() {
     setShowPreview(false);
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+        } catch {}
+      }
+
       const response = await fetch("/api/ai/generate-assignment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           question,
           subject,
@@ -49,12 +57,16 @@ export default function AssignmentsPage() {
         }),
       });
 
+      let result: any = null;
+      try {
+        const text = await response.text();
+        result = text ? JSON.parse(text) : null;
+      } catch {}
+
       if (!response.ok) {
-        const errData = await response.json().catch(() => null);
-        throw new Error(errData?.error || "Generation failed");
+        throw new Error(result?.error || "Generation failed");
       }
 
-      const result = await response.json();
       const assignmentData: AssignmentData = {
         answer: result.answer || result.data?.answer || "",
         wordCount: result.wordCount || result.data?.wordCount || 0,

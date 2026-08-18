@@ -63,23 +63,39 @@ export default function NotesPage() {
     setSaved(false);
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+        } catch {}
+      }
+
       const response = await fetch("/api/ai/generate-notes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ subject, topic, noteType, uid: user?.uid }),
       });
 
-      if (!response.ok) throw new Error("Generation failed");
+      let data: any = null;
+      try {
+        const text = await response.text();
+        data = text ? JSON.parse(text) : null;
+      } catch {}
 
-      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Generation failed. Please try again.");
+      }
+
+      const result = data?.data || data;
       setNote(result);
       if (user) {
         await incrementUserProfileField(user.uid, "aiUsageCount", 1);
         await refreshProfile();
       }
       toast.success("Notes generated successfully!");
-    } catch {
-      toast.error("Failed to generate notes. Please try again.");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to generate notes. Please try again.");
     } finally {
       setLoading(false);
     }

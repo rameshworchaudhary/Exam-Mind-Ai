@@ -66,9 +66,15 @@ export default function PYQPage() {
 
       setUploadProgress(50);
 
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      try {
+        const token = await user.getIdToken();
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+      } catch {}
+
       const response = await fetch("/api/ai/analyze-pyq", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           text: extractedText.slice(0, 3000),
           subject: subject || "General",
@@ -76,8 +82,11 @@ export default function PYQPage() {
         }),
       });
 
-      const data = await response.json();
-      console.log("PYQ API Response:", data);
+      let data: any = null;
+      try {
+        const resText = await response.text();
+        data = resText ? JSON.parse(resText) : null;
+      } catch {}
 
       if (!response.ok) {
         throw new Error(data?.error || "PYQ analysis failed");

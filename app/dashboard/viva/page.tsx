@@ -40,13 +40,28 @@ export default function VivaPage() {
     }
     setLoading(true);
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          if (token) headers["Authorization"] = `Bearer ${token}`;
+        } catch {}
+      }
+
       const res = await fetch("/api/ai/viva-questions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ subject, topic, uid: user?.uid }),
       });
-      if (!res.ok) throw new Error();
-      const { questions: qs } = await res.json();
+
+      let data: any = null;
+      try {
+        const text = await res.text();
+        data = text ? JSON.parse(text) : null;
+      } catch {}
+
+      if (!res.ok) throw new Error(data?.error || "Failed to generate questions.");
+      const qs = data?.questions || data?.data?.questions || [];
       setQuestions(qs);
       setExpandedIdx(null);
       setPracticeMode(false);
@@ -55,8 +70,8 @@ export default function VivaPage() {
         await refreshProfile();
       }
       toast.success("Viva questions generated!");
-    } catch {
-      toast.error("Failed to generate questions.");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to generate questions.");
     } finally {
       setLoading(false);
     }

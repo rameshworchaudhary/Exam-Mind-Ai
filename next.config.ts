@@ -2,12 +2,19 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  serverExternalPackages: [
+    "firebase-admin",
+    "@google-cloud/firestore",
+    "jwks-rsa",
+    "jose",
+  ],
   // Allow Cloud Run / AI Studio preview origins in development mode
   allowedDevOrigins: [
     "*.run.app",
+    "*.asia-east1.run.app",
     "*.asia-southeast1.run.app",
-    "ais-dev-dny3nqjgqoor4ozbkln2if-2339521220.asia-southeast1.run.app",
-    "ais-pre-dny3nqjgqoor4ozbkln2if-2339521220.asia-southeast1.run.app",
+    "ais-dev-d7jxrdihs522xgnz4fx5nv-905144230119.asia-east1.run.app",
+    "ais-pre-d7jxrdihs522xgnz4fx5nv-905144230119.asia-east1.run.app",
     "localhost:3000",
     "127.0.0.1:3000",
   ],
