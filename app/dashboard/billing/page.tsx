@@ -52,7 +52,7 @@ export default function BillingPage() {
           </div>
           <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground bg-muted/20 px-3 py-1.5 rounded-lg border border-border/60 shrink-0">
             <Clock className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Resets 00:00 UTC</span>
+            <span>Resets 00:00 IST</span>
           </div>
         </div>
       </motion.div>

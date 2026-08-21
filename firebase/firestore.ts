@@ -151,7 +151,16 @@ export interface DailyUsageData {
 
 export function getTodayDateString(): string {
   const now = new Date();
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  return `${year}-${month}-${day}`;
 }
 
 export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
@@ -561,38 +570,92 @@ export async function savePrediction(
 // STUDY STREAK
 // =========================================
 
-export async function updateStudyStreak(uid: string) {
+export async function calculateAndSyncDailyStreak(uid: string): Promise<{
+  streak: number;
+  updated: boolean;
+  lastActiveDate?: string;
+  isConsecutive: boolean;
+}> {
+  if (!uid || uid === "anonymous") {
+    return { streak: 0, updated: false, isConsecutive: false };
+  }
+
   const userRef = doc(db, "users", uid);
-  const path = `users/${uid}`;
+  const todayStr = getTodayDateString();
+
   try {
     const userSnap = await getDoc(userRef);
-
-    if (userSnap.exists()) {
-      const userData = userSnap.data();
-      const lastActive = new Date(userData.lastActiveDate || "");
-      const today = new Date();
-      const diffDays = Math.floor(
-        (today.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24)
-      );
-
-      let newStreak = userData.studyStreak || 0;
-      if (diffDays === 1) {
-        newStreak += 1;
-      } else if (diffDays > 1) {
-        newStreak = 1;
-      }
-
-      await updateDoc(userRef, {
-        studyStreak: newStreak,
-        lastActiveDate: today.toISOString(),
-        updatedAt: serverTimestamp(),
-      });
-
-      return newStreak;
+    if (!userSnap.exists()) {
+      return { streak: 1, updated: false, isConsecutive: false };
     }
+
+    const data = userSnap.data();
+    const currentStreak = typeof data.studyStreak === "number" ? data.studyStreak : 0;
+    const lastActiveRaw = data.lastActiveDate || data.lastLoginDate;
+
+    let lastDateStr = "";
+    if (lastActiveRaw) {
+      if (typeof lastActiveRaw === "string") {
+        lastDateStr = lastActiveRaw.substring(0, 10);
+      } else if (lastActiveRaw.toDate && typeof lastActiveRaw.toDate === "function") {
+        lastDateStr = lastActiveRaw.toDate().toISOString().substring(0, 10);
+      }
+    }
+
+    // If already logged in and recorded today
+    if (lastDateStr === todayStr) {
+      const streak = currentStreak > 0 ? currentStreak : 1;
+      if (currentStreak === 0) {
+        await updateDoc(userRef, {
+          studyStreak: 1,
+          lastActiveDate: new Date().toISOString(),
+          lastLoginDate: todayStr,
+          updatedAt: serverTimestamp(),
+        });
+      }
+      return { streak, updated: false, lastActiveDate: lastDateStr, isConsecutive: true };
+    }
+
+    // Calculate if consecutive from yesterday
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+
+    let newStreak = 1;
+    let isConsecutive = false;
+
+    if (lastDateStr === yesterdayStr) {
+      // Consecutive login yesterday!
+      newStreak = currentStreak + 1;
+      isConsecutive = true;
+    } else {
+      // Broken streak or first login
+      newStreak = 1;
+      isConsecutive = false;
+    }
+
+    await updateDoc(userRef, {
+      studyStreak: newStreak,
+      lastActiveDate: new Date().toISOString(),
+      lastLoginDate: todayStr,
+      updatedAt: serverTimestamp(),
+    });
+
+    return {
+      streak: newStreak,
+      updated: true,
+      lastActiveDate: todayStr,
+      isConsecutive,
+    };
   } catch (error) {
-    console.error("Error updating study streak:", error);
+    console.error("Error calculating daily streak:", error);
+    return { streak: 1, updated: false, isConsecutive: false };
   }
-  return 0;
+}
+
+export async function updateStudyStreak(uid: string) {
+  const result = await calculateAndSyncDailyStreak(uid);
+  return result.streak;
 }
 

@@ -5,6 +5,7 @@ import { checkServerDailyUsage, incrementServerDailyUsage, getVerifiedUid } from
 import pdfParse from "pdf-parse";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {

@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/utils";
+import { StreakCounter } from "@/components/dashboard/StreakCounter";
 
 const mainNavItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Your Courses" },
@@ -47,6 +48,7 @@ export function Sidebar() {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [hoveredNav, setHoveredNav] = useState<string | null>(null);
 
   const displayEmail = user?.email || "chaudharyishwor143@gmail.com";
 
@@ -88,74 +90,191 @@ export function Sidebar() {
       </div>
 
       {/* Intro section matching reference */}
-      <div className="px-4 pt-5 pb-3">
+      <div className="px-4 pt-4 pb-2">
         <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Your Courses</h2>
         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
           Enter a course on the right to take an assessment or study materials.
         </p>
       </div>
 
+      {/* Daily Study Streak Counter */}
+      <div className="px-3 py-1">
+        <StreakCounter />
+      </div>
+
       {/* Navigation List */}
-      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+      <nav
+        className="flex-1 overflow-y-auto px-3 py-2 space-y-1"
+        onMouseLeave={() => setHoveredNav(null)}
+      >
         {mainNavItems.map((item) => {
           const isActive =
             pathname === item.href ||
             (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          const isHovered = hoveredNav === item.href;
+
           return (
-            <Link
+            <motion.div
               key={item.href}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors group",
-                isActive
-                  ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-semibold"
-                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
-              )}
+              whileHover={{ x: 4, scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 450, damping: 26 }}
+              onMouseEnter={() => setHoveredNav(item.href)}
+              className="relative"
             >
-              <item.icon
+              <Link
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
                 className={cn(
-                  "w-4 h-4 shrink-0 transition-colors",
+                  "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-150 relative z-10 select-none group",
                   isActive
-                    ? "text-indigo-600 dark:text-indigo-400"
-                    : "text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"
+                    ? "text-zinc-900 dark:text-zinc-100 font-semibold"
+                    : "text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100"
                 )}
-              />
-              <span className="flex-1 truncate">{item.label}</span>
-              {isActive && (
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 shrink-0" />
-              )}
-            </Link>
+              >
+                {/* Active static background or animated hover pill */}
+                {isActive && (
+                  <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900 rounded-lg shadow-xs -z-10" />
+                )}
+
+                {isHovered && !isActive && (
+                  <motion.div
+                    layoutId="sidebarNavHoverHighlight"
+                    className="absolute inset-0 bg-zinc-100/80 dark:bg-zinc-900/80 rounded-lg -z-10"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  />
+                )}
+
+                <motion.div
+                  animate={{
+                    scale: isHovered ? 1.15 : 1,
+                    rotate: isHovered ? [0, -4, 4, 0] : 0,
+                  }}
+                  transition={{ duration: 0.25 }}
+                  className="shrink-0"
+                >
+                  <item.icon
+                    className={cn(
+                      "w-4 h-4 transition-colors duration-150",
+                      isActive
+                        ? "text-indigo-600 dark:text-indigo-400"
+                        : isHovered
+                        ? "text-indigo-600 dark:text-indigo-400"
+                        : "text-zinc-400"
+                    )}
+                  />
+                </motion.div>
+
+                <span className="flex-1 truncate transition-colors duration-150">
+                  {item.label}
+                </span>
+
+                {isActive ? (
+                  <motion.span
+                    layoutId="activeNavIndicator"
+                    className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 shrink-0"
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  />
+                ) : isHovered ? (
+                  <motion.span
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    className="w-1.5 h-1.5 rounded-full bg-indigo-400/60 dark:bg-indigo-500/60 shrink-0"
+                  />
+                ) : null}
+              </Link>
+            </motion.div>
           );
         })}
 
         <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800/80 mt-3 space-y-1">
-          <Link
-            href="/dashboard/billing"
-            onClick={() => setMobileOpen(false)}
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-              pathname === "/dashboard/billing"
-                ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-semibold"
-                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
-            )}
-          >
-            <Gauge className="w-4 h-4 text-zinc-400" />
-            <span>Daily Usage & Limits</span>
-          </Link>
-          <Link
-            href="/dashboard/settings"
-            onClick={() => setMobileOpen(false)}
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-              pathname === "/dashboard/settings"
-                ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-semibold"
-                : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
-            )}
-          >
-            <Settings className="w-4 h-4 text-zinc-400" />
-            <span>Settings</span>
-          </Link>
+          {[
+            { href: "/dashboard/billing", icon: Gauge, label: "Daily Usage & Limits" },
+            { href: "/dashboard/settings", icon: Settings, label: "Settings" },
+          ].map((item) => {
+            const isActive = pathname === item.href;
+            const isHovered = hoveredNav === item.href;
+
+            return (
+              <motion.div
+                key={item.href}
+                whileHover={{ x: 4, scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 450, damping: 26 }}
+                onMouseEnter={() => setHoveredNav(item.href)}
+                className="relative"
+              >
+                <Link
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-150 relative z-10 select-none group",
+                    isActive
+                      ? "text-zinc-900 dark:text-zinc-100 font-semibold"
+                      : "text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100"
+                  )}
+                >
+                  {isActive && (
+                    <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900 rounded-lg shadow-xs -z-10" />
+                  )}
+
+                  {isHovered && !isActive && (
+                    <motion.div
+                      layoutId="sidebarNavHoverHighlight"
+                      className="absolute inset-0 bg-zinc-100/80 dark:bg-zinc-900/80 rounded-lg -z-10"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                    />
+                  )}
+
+                  <motion.div
+                    animate={{
+                      scale: isHovered ? 1.15 : 1,
+                      rotate: isHovered ? [0, -4, 4, 0] : 0,
+                    }}
+                    transition={{ duration: 0.25 }}
+                    className="shrink-0"
+                  >
+                    <item.icon
+                      className={cn(
+                        "w-4 h-4 transition-colors duration-150",
+                        isActive
+                          ? "text-indigo-600 dark:text-indigo-400"
+                          : isHovered
+                          ? "text-indigo-600 dark:text-indigo-400"
+                          : "text-zinc-400"
+                      )}
+                    />
+                  </motion.div>
+
+                  <span className="flex-1 truncate transition-colors duration-150">
+                    {item.label}
+                  </span>
+
+                  {isActive ? (
+                    <motion.span
+                      layoutId="activeNavIndicator"
+                      className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 shrink-0"
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                    />
+                  ) : isHovered ? (
+                    <motion.span
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      className="w-1.5 h-1.5 rounded-full bg-indigo-400/60 dark:bg-indigo-500/60 shrink-0"
+                    />
+                  ) : null}
+                </Link>
+              </motion.div>
+            );
+          })}
         </div>
       </nav>
 

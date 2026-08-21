@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateHandwrittenHTML } from "@/services/handwriting";
 import { checkServerDailyUsage, incrementServerDailyUsage, getVerifiedUid } from "@/services/usage";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

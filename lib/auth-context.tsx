@@ -16,8 +16,6 @@ import {
   getUserProfile,
   getDailyUsage,
   DailyUsageData,
-  DAILY_PDF_LIMIT,
-  DAILY_CHAT_LIMIT,
 } from "@/firebase/firestore";
 
 interface UserProfile {
@@ -47,24 +45,10 @@ interface AuthContextType {
   refreshDailyUsage: () => Promise<void>;
 }
 
-const defaultDailyUsage: DailyUsageData = {
-  date: new Date().toISOString().split("T")[0],
-  count: 0,
-  analysisCount: 0,
-  pdfCount: 0,
-  chatCount: 0,
-  maxAnalysis: DAILY_PDF_LIMIT,
-  maxPdf: DAILY_PDF_LIMIT,
-  maxChat: DAILY_CHAT_LIMIT,
-  analysisRemaining: DAILY_PDF_LIMIT,
-  pdfRemaining: DAILY_PDF_LIMIT,
-  chatRemaining: DAILY_CHAT_LIMIT,
-};
-
 const AuthContext = createContext<AuthContextType>({
   user: null,
   userProfile: null,
-  dailyUsage: defaultDailyUsage,
+  dailyUsage: null,
   loading: true,
   isAuthenticated: false,
   emailVerified: false,
@@ -76,7 +60,7 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [dailyUsage, setDailyUsage] = useState<DailyUsageData | null>(defaultDailyUsage);
+  const [dailyUsage, setDailyUsage] = useState<DailyUsageData | null>(null);
   const [emailVerified, setEmailVerified] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
@@ -108,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!firebaseUser) {
         setUser(null);
         setUserProfile(null);
-        setDailyUsage(defaultDailyUsage);
+        setDailyUsage(null);
         setEmailVerified(false);
         setLoading(false);
         return;
@@ -121,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           toast.error("Please verify your email first.");
           setUser(null);
           setUserProfile(null);
-          setDailyUsage(defaultDailyUsage);
+          setDailyUsage(null);
           setEmailVerified(false);
           setLoading(false);
           return;
@@ -137,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error("Failed to refresh authentication state:", error);
         setUser(null);
         setUserProfile(null);
-        setDailyUsage(defaultDailyUsage);
+        setDailyUsage(null);
         setEmailVerified(false);
       } finally {
         setLoading(false);
@@ -153,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await logout();
     setUser(null);
     setUserProfile(null);
-    setDailyUsage(defaultDailyUsage);
+    setDailyUsage(null);
     setEmailVerified(false);
   };
 
