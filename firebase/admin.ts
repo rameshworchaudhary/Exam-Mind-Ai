@@ -95,11 +95,9 @@ export function getAdminApp(): App | null {
       return getApps()[0]!;
     }
 
-    if (adminApp || initAttempted) {
+    if (adminApp) {
       return adminApp;
     }
-
-    initAttempted = true;
 
     const projectId = resolveProjectId();
     const clientEmail = (
@@ -154,17 +152,19 @@ export function getAdminApp(): App | null {
           // Continue to next candidate
         }
       }
-      console.info("[Firebase Admin] Service account key not configured or format requires standard PEM. Using resilient in-memory store for session usage.");
     }
 
-    // 3. Try GCP environment ADC if hosted
-    if (projectId && projectId !== "placeholder-project" && (process.env.K_SERVICE || process.env.VERCEL)) {
-      try {
-        adminApp = initializeApp({
-          projectId,
-        });
-        return adminApp;
-      } catch {}
+    // 3. Fallback to initialize with project ID for Firestore and Auth
+    try {
+      adminApp = initializeApp({
+        projectId,
+      });
+      return adminApp;
+    } catch {
+      // If getApps now has one, return it
+      if (getApps().length > 0) {
+        return getApps()[0]!;
+      }
     }
 
     return adminApp;

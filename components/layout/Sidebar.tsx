@@ -42,36 +42,34 @@ const mainNavItems = [
   { href: "/dashboard/chatbot", icon: MessageSquare, label: "Ask a Doubt" },
 ];
 
-export function Sidebar() {
-  const pathname = usePathname();
-  const { user, userProfile } = useAuth();
-  const router = useRouter();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [hoveredNav, setHoveredNav] = useState<string | null>(null);
+interface SidebarContentProps {
+  pathname: string;
+  user: any;
+  userProfile: any;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  onCloseMobile?: () => void;
+  onLogout: () => void;
+  onSupportClick: () => void;
+}
 
+function SidebarContent({
+  pathname,
+  user,
+  userProfile,
+  collapsed,
+  onToggleCollapse,
+  onCloseMobile,
+  onLogout,
+  onSupportClick,
+}: SidebarContentProps) {
   const displayEmail = user?.email || "chaudharyishwor143@gmail.com";
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      toast.success("Signed out successfully");
-      router.push("/");
-    } catch {
-      toast.error("Failed to sign out");
-    }
-  };
-
-  const handleSupportClick = () => {
-    window.location.href = "mailto:chaudharyishwor143@gmail.com?subject=PadhaiHub%20Student%20Support%20Request";
-    toast.info("Opening email to chaudharyishwor143@gmail.com");
-  };
-
-  const SidebarContent = () => (
+  return (
     <div className="flex flex-col h-full bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 select-none transition-colors">
       {/* Top Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-zinc-200/80 dark:border-zinc-800">
-        <Link href="/dashboard" className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-4 border-b border-zinc-200/80 dark:border-zinc-800 shrink-0">
+        <Link href="/dashboard" className="flex items-center gap-2" onClick={onCloseMobile}>
           {/* Stylized PadhaiHub typography */}
           <div className="flex items-center font-bold tracking-tight text-lg text-zinc-900 dark:text-white">
             <span className="text-indigo-600 dark:text-indigo-400 font-black text-xl tracking-tight">Padhai</span>
@@ -81,7 +79,7 @@ export function Sidebar() {
 
         {/* Collapse toggle icon << */}
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={onToggleCollapse}
           className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900 p-1.5 rounded-md transition-colors hidden lg:flex items-center justify-center"
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
@@ -90,7 +88,7 @@ export function Sidebar() {
       </div>
 
       {/* Intro section matching reference */}
-      <div className="px-4 pt-4 pb-2">
+      <div className="px-4 pt-4 pb-2 shrink-0">
         <h2 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Your Courses</h2>
         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-relaxed">
           Enter a course on the right to take an assessment or study materials.
@@ -98,96 +96,49 @@ export function Sidebar() {
       </div>
 
       {/* Daily Study Streak Counter */}
-      <div className="px-3 py-1">
+      <div className="px-3 py-1 shrink-0">
         <StreakCounter />
       </div>
 
       {/* Navigation List */}
-      <nav
-        className="flex-1 overflow-y-auto px-3 py-2 space-y-1"
-        onMouseLeave={() => setHoveredNav(null)}
-      >
+      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1 overscroll-contain">
         {mainNavItems.map((item) => {
           const isActive =
             pathname === item.href ||
             (item.href !== "/dashboard" && pathname.startsWith(item.href));
-          const isHovered = hoveredNav === item.href;
 
           return (
-            <motion.div
-              key={item.href}
-              whileHover={{ x: 4, scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ type: "spring", stiffness: 450, damping: 26 }}
-              onMouseEnter={() => setHoveredNav(item.href)}
-              className="relative"
-            >
+            <div key={item.href} className="relative">
               <Link
                 href={item.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={onCloseMobile}
                 className={cn(
-                  "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-150 relative z-10 select-none group",
+                  "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-150 relative select-none group",
                   isActive
-                    ? "text-zinc-900 dark:text-zinc-100 font-semibold"
-                    : "text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100"
+                    ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-semibold"
+                    : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100/80 dark:hover:bg-zinc-900/80 hover:text-zinc-900 dark:hover:text-zinc-100"
                 )}
               >
-                {/* Active static background or animated hover pill */}
-                {isActive && (
-                  <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900 rounded-lg shadow-xs -z-10" />
-                )}
-
-                {isHovered && !isActive && (
-                  <motion.div
-                    layoutId="sidebarNavHoverHighlight"
-                    className="absolute inset-0 bg-zinc-100/80 dark:bg-zinc-900/80 rounded-lg -z-10"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                  />
-                )}
-
-                <motion.div
-                  animate={{
-                    scale: isHovered ? 1.15 : 1,
-                    rotate: isHovered ? [0, -4, 4, 0] : 0,
-                  }}
-                  transition={{ duration: 0.25 }}
-                  className="shrink-0"
-                >
+                <div className="shrink-0 transition-transform duration-150 group-hover:scale-105">
                   <item.icon
                     className={cn(
                       "w-4 h-4 transition-colors duration-150",
                       isActive
                         ? "text-indigo-600 dark:text-indigo-400"
-                        : isHovered
-                        ? "text-indigo-600 dark:text-indigo-400"
-                        : "text-zinc-400"
+                        : "text-zinc-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
                     )}
                   />
-                </motion.div>
+                </div>
 
                 <span className="flex-1 truncate transition-colors duration-150">
                   {item.label}
                 </span>
 
-                {isActive ? (
-                  <motion.span
-                    layoutId="activeNavIndicator"
-                    className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 shrink-0"
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                  />
-                ) : isHovered ? (
-                  <motion.span
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    className="w-1.5 h-1.5 rounded-full bg-indigo-400/60 dark:bg-indigo-500/60 shrink-0"
-                  />
-                ) : null}
+                {isActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 shrink-0" />
+                )}
               </Link>
-            </motion.div>
+            </div>
           );
         })}
 
@@ -197,91 +148,48 @@ export function Sidebar() {
             { href: "/dashboard/settings", icon: Settings, label: "Settings" },
           ].map((item) => {
             const isActive = pathname === item.href;
-            const isHovered = hoveredNav === item.href;
 
             return (
-              <motion.div
-                key={item.href}
-                whileHover={{ x: 4, scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ type: "spring", stiffness: 450, damping: 26 }}
-                onMouseEnter={() => setHoveredNav(item.href)}
-                className="relative"
-              >
+              <div key={item.href} className="relative">
                 <Link
                   href={item.href}
-                  onClick={() => setMobileOpen(false)}
+                  onClick={onCloseMobile}
                   className={cn(
-                    "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-150 relative z-10 select-none group",
+                    "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-150 relative select-none group",
                     isActive
-                      ? "text-zinc-900 dark:text-zinc-100 font-semibold"
-                      : "text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100"
+                      ? "bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-semibold"
+                      : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100/80 dark:hover:bg-zinc-900/80 hover:text-zinc-900 dark:hover:text-zinc-100"
                   )}
                 >
-                  {isActive && (
-                    <div className="absolute inset-0 bg-zinc-100 dark:bg-zinc-900 rounded-lg shadow-xs -z-10" />
-                  )}
-
-                  {isHovered && !isActive && (
-                    <motion.div
-                      layoutId="sidebarNavHoverHighlight"
-                      className="absolute inset-0 bg-zinc-100/80 dark:bg-zinc-900/80 rounded-lg -z-10"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                    />
-                  )}
-
-                  <motion.div
-                    animate={{
-                      scale: isHovered ? 1.15 : 1,
-                      rotate: isHovered ? [0, -4, 4, 0] : 0,
-                    }}
-                    transition={{ duration: 0.25 }}
-                    className="shrink-0"
-                  >
+                  <div className="shrink-0 transition-transform duration-150 group-hover:scale-105">
                     <item.icon
                       className={cn(
                         "w-4 h-4 transition-colors duration-150",
                         isActive
                           ? "text-indigo-600 dark:text-indigo-400"
-                          : isHovered
-                          ? "text-indigo-600 dark:text-indigo-400"
-                          : "text-zinc-400"
+                          : "text-zinc-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
                       )}
                     />
-                  </motion.div>
+                  </div>
 
                   <span className="flex-1 truncate transition-colors duration-150">
                     {item.label}
                   </span>
 
-                  {isActive ? (
-                    <motion.span
-                      layoutId="activeNavIndicator"
-                      className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 shrink-0"
-                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                    />
-                  ) : isHovered ? (
-                    <motion.span
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0, opacity: 0 }}
-                      className="w-1.5 h-1.5 rounded-full bg-indigo-400/60 dark:bg-indigo-500/60 shrink-0"
-                    />
-                  ) : null}
+                  {isActive && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400 shrink-0" />
+                  )}
                 </Link>
-              </motion.div>
+              </div>
             );
           })}
         </div>
       </nav>
 
       {/* Bottom Help / Support matching screenshot */}
-      <div className="border-t border-zinc-200/80 dark:border-zinc-800 p-3 space-y-2 bg-white dark:bg-zinc-950">
+      <div className="border-t border-zinc-200/80 dark:border-zinc-800 p-3 space-y-2 bg-white dark:bg-zinc-950 shrink-0">
         <button
-          onClick={handleSupportClick}
+          onClick={onSupportClick}
           className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
           title="Contact chaudharyishwor143@gmail.com"
         >
@@ -308,7 +216,7 @@ export function Sidebar() {
             </p>
           </div>
           <button
-            onClick={handleLogout}
+            onClick={onLogout}
             className="text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 p-1.5 rounded transition-colors"
             title="Sign out"
           >
@@ -318,12 +226,43 @@ export function Sidebar() {
       </div>
     </div>
   );
+}
+
+export function Sidebar() {
+  const pathname = usePathname();
+  const { user, userProfile } = useAuth();
+  const router = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success("Signed out successfully");
+      router.push("/");
+    } catch {
+      toast.error("Failed to sign out");
+    }
+  };
+
+  const handleSupportClick = () => {
+    window.location.href = "mailto:chaudharyishwor143@gmail.com?subject=PadhaiHub%20Student%20Support%20Request";
+    toast.info("Opening email to chaudharyishwor143@gmail.com");
+  };
 
   return (
     <>
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex fixed inset-y-0 left-0 w-64 bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800 flex-col z-30 transition-colors">
-        <SidebarContent />
+        <SidebarContent
+          pathname={pathname}
+          user={user}
+          userProfile={userProfile}
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed(!collapsed)}
+          onLogout={handleLogout}
+          onSupportClick={handleSupportClick}
+        />
       </aside>
 
       {/* Mobile Hamburger Button */}
@@ -354,7 +293,16 @@ export function Sidebar() {
               transition={{ type: "spring", damping: 28, stiffness: 280 }}
               className="lg:hidden fixed inset-y-0 left-0 w-64 bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800 z-50 flex flex-col shadow-2xl"
             >
-              <SidebarContent />
+              <SidebarContent
+                pathname={pathname}
+                user={user}
+                userProfile={userProfile}
+                collapsed={collapsed}
+                onToggleCollapse={() => setCollapsed(!collapsed)}
+                onCloseMobile={() => setMobileOpen(false)}
+                onLogout={handleLogout}
+                onSupportClick={handleSupportClick}
+              />
             </motion.div>
           </>
         )}
