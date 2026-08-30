@@ -21,6 +21,7 @@ import {
   Menu,
   X,
   Mail,
+  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -34,6 +35,7 @@ import { StreakCounter } from "@/components/dashboard/StreakCounter";
 const mainNavItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Your Courses" },
   { href: "/dashboard/syllabus", icon: FileText, label: "Syllabus Breakdown" },
+  { href: "/dashboard/study-from-syllabus", icon: GraduationCap, label: "Study From Syllabus" },
   { href: "/dashboard/pyq", icon: TrendingUp, label: "Past Exam Questions" },
   { href: "/dashboard/notes", icon: BookOpen, label: "Quick Notes" },
   { href: "/dashboard/assignments", icon: PenTool, label: "Handwritten Notes" },

@@ -359,6 +359,73 @@ export async function getUserUploads(uid: string) {
   }
 }
 
+export async function saveStudySyllabusSession(
+  uid: string,
+  data: {
+    subject: string;
+    courseCode?: string;
+    units: Array<Record<string, unknown>>;
+    totalTopics: number;
+    completedTopicIds: string[];
+    currentUnitId?: string;
+    currentTopicId?: string;
+    language: "english" | "hinglish";
+    coverageMode: "one-by-one" | "unit-by-unit";
+    summary?: string;
+  }
+) {
+  if (!uid || uid === "anonymous") return null;
+  try {
+    const ref = await addDoc(collection(db, "uploads"), {
+      uid,
+      type: "study-from-syllabus",
+      fileName: `${data.subject} Study Session`,
+      fileUrl: "",
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    return ref.id;
+  } catch (error) {
+    console.error("Error saving study session:", error);
+    return null;
+  }
+}
+
+export async function updateStudySyllabusSession(
+  sessionId: string,
+  updates: Record<string, unknown>
+) {
+  if (!sessionId) return;
+  try {
+    const docRef = doc(db, "uploads", sessionId);
+    await updateDoc(docRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error updating study session:", error);
+  }
+}
+
+export async function getUserStudySyllabusSessions(uid: string) {
+  if (!uid || uid === "anonymous") return [];
+  try {
+    const q = query(
+      collection(db, "uploads"),
+      where("uid", "==", uid),
+      where("type", "==", "study-from-syllabus"),
+      orderBy("createdAt", "desc"),
+      limit(10)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    console.error("Error fetching study sessions:", error);
+    return [];
+  }
+}
+
 // =========================================
 // NOTES
 // =========================================
