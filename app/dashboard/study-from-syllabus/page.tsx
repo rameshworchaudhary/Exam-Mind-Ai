@@ -315,8 +315,8 @@ export default function StudyFromSyllabusPage() {
 
       // Refresh daily usage limit display
       if (user?.uid) {
-        refreshDailyUsage();
-        refreshProfile();
+        await refreshDailyUsage(user.uid);
+        await refreshProfile(user.uid);
       }
 
       setParsingProgress(100);

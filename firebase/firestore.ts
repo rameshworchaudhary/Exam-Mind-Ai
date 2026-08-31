@@ -210,29 +210,31 @@ export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
             typeof data.pdfCount === "number" ||
             typeof data.chatCount === "number")
         ) {
-          const analysisCount =
-            typeof data.analysisCount === "number"
-              ? data.analysisCount
+          const rawPdf =
+            typeof data.pdfCount === "number" && typeof data.analysisCount === "number"
+              ? Math.max(data.pdfCount, data.analysisCount)
               : typeof data.pdfCount === "number"
               ? data.pdfCount
+              : typeof data.analysisCount === "number"
+              ? data.analysisCount
               : 0;
           const chatCount = typeof data.chatCount === "number" ? data.chatCount : 0;
           const count =
             typeof data.count === "number"
               ? data.count
-              : analysisCount + chatCount;
+              : rawPdf + chatCount;
           return {
             uid,
             date: data.date || today,
             count,
-            analysisCount,
-            pdfCount: analysisCount,
+            analysisCount: rawPdf,
+            pdfCount: rawPdf,
             chatCount,
             maxAnalysis: DAILY_PDF_LIMIT,
             maxPdf: DAILY_PDF_LIMIT,
             maxChat: DAILY_CHAT_LIMIT,
-            analysisRemaining: Math.max(0, DAILY_PDF_LIMIT - analysisCount),
-            pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - analysisCount),
+            analysisRemaining: Math.max(0, DAILY_PDF_LIMIT - rawPdf),
+            pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - rawPdf),
             chatRemaining: Math.max(0, DAILY_CHAT_LIMIT - chatCount),
           };
         }
@@ -250,29 +252,31 @@ export async function getDailyUsage(uid: string): Promise<DailyUsageData> {
     const snap = await getDoc(usageRef);
     if (snap.exists()) {
       const data = snap.data();
-      const analysisCount =
-        typeof data.analysisCount === "number"
-          ? data.analysisCount
+      const rawPdf =
+        typeof data.pdfCount === "number" && typeof data.analysisCount === "number"
+          ? Math.max(data.pdfCount, data.analysisCount)
           : typeof data.pdfCount === "number"
           ? data.pdfCount
+          : typeof data.analysisCount === "number"
+          ? data.analysisCount
           : 0;
       const chatCount = typeof data.chatCount === "number" ? data.chatCount : 0;
       const count =
         typeof data.count === "number"
           ? data.count
-          : analysisCount + chatCount;
+          : rawPdf + chatCount;
       return {
         uid,
         date: today,
         count,
-        analysisCount,
-        pdfCount: analysisCount,
+        analysisCount: rawPdf,
+        pdfCount: rawPdf,
         chatCount,
         maxAnalysis: DAILY_PDF_LIMIT,
         maxPdf: DAILY_PDF_LIMIT,
         maxChat: DAILY_CHAT_LIMIT,
-        analysisRemaining: Math.max(0, DAILY_PDF_LIMIT - analysisCount),
-        pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - analysisCount),
+        analysisRemaining: Math.max(0, DAILY_PDF_LIMIT - rawPdf),
+        pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - rawPdf),
         chatRemaining: Math.max(0, DAILY_CHAT_LIMIT - chatCount),
       };
     }

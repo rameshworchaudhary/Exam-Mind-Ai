@@ -25,7 +25,7 @@ export interface ServerUsageState {
 // In-memory atomic store as resilient fallback & fast-sync cache (keyed by `${uid}_${date}`)
 const inMemoryStore = new Map<
   string,
-  { count: number; analysisCount: number; chatCount: number; updatedAt: number }
+  { count: number; pdfCount: number; analysisCount: number; chatCount: number; updatedAt: number }
 >();
 
 export function getTodayDateString(): string {
@@ -121,7 +121,7 @@ export async function getServerDailyUsage(uid: string): Promise<ServerUsageState
 
   const docId = `${uid}_${today}`;
   let count = 0;
-  let analysisCount = 0;
+  let pdfCount = 0;
   let chatCount = 0;
 
   const adminDb = getAdminFirestore();
@@ -133,31 +133,35 @@ export async function getServerDailyUsage(uid: string): Promise<ServerUsageState
       if (snapshot.exists) {
         const data = snapshot.data();
         if (data) {
-          analysisCount =
-            typeof data.analysisCount === "number"
-              ? data.analysisCount
+          const rawPdf =
+            typeof data.pdfCount === "number" && typeof data.analysisCount === "number"
+              ? Math.max(data.pdfCount, data.analysisCount)
               : typeof data.pdfCount === "number"
               ? data.pdfCount
+              : typeof data.analysisCount === "number"
+              ? data.analysisCount
               : 0;
+          pdfCount = rawPdf;
           chatCount = typeof data.chatCount === "number" ? data.chatCount : 0;
           count =
             typeof data.count === "number"
               ? data.count
-              : analysisCount + chatCount;
+              : pdfCount + chatCount;
 
           inMemoryStore.set(docId, {
             count,
-            analysisCount,
+            pdfCount,
+            analysisCount: pdfCount,
             chatCount,
             updatedAt: Date.now(),
           });
-          console.log(`[Usage] Read dailyUsage/${docId} from Firestore: count=${count}, analysis=${analysisCount}, chat=${chatCount}`);
+          console.log(`[Usage] Read dailyUsage/${docId} from Firestore: count=${count}, pdf=${pdfCount}, chat=${chatCount}`);
         }
       } else {
         const cached = inMemoryStore.get(docId);
         if (cached) {
           count = cached.count;
-          analysisCount = cached.analysisCount;
+          pdfCount = cached.pdfCount ?? cached.analysisCount ?? 0;
           chatCount = cached.chatCount;
         }
       }
@@ -166,7 +170,7 @@ export async function getServerDailyUsage(uid: string): Promise<ServerUsageState
       const cached = inMemoryStore.get(docId);
       if (cached) {
         count = cached.count;
-        analysisCount = cached.analysisCount;
+        pdfCount = cached.pdfCount ?? cached.analysisCount ?? 0;
         chatCount = cached.chatCount;
       }
     }
@@ -174,7 +178,7 @@ export async function getServerDailyUsage(uid: string): Promise<ServerUsageState
     const cached = inMemoryStore.get(docId);
     if (cached) {
       count = cached.count;
-      analysisCount = cached.analysisCount;
+      pdfCount = cached.pdfCount ?? cached.analysisCount ?? 0;
       chatCount = cached.chatCount;
     }
   }
@@ -183,14 +187,14 @@ export async function getServerDailyUsage(uid: string): Promise<ServerUsageState
     uid,
     date: today,
     count,
-    analysisCount,
-    pdfCount: analysisCount,
+    analysisCount: pdfCount,
+    pdfCount,
     chatCount,
     maxAnalysis: DAILY_ANALYSIS_LIMIT,
     maxPdf: DAILY_PDF_LIMIT,
     maxChat: DAILY_CHAT_LIMIT,
-    analysisRemaining: Math.max(0, DAILY_ANALYSIS_LIMIT - analysisCount),
-    pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - analysisCount),
+    analysisRemaining: Math.max(0, DAILY_ANALYSIS_LIMIT - pdfCount),
+    pdfRemaining: Math.max(0, DAILY_PDF_LIMIT - pdfCount),
     chatRemaining: Math.max(0, DAILY_CHAT_LIMIT - chatCount),
   };
 }
@@ -338,11 +342,15 @@ export async function incrementServerDailyUsage(
       // Update in-memory store
       let currentMemory = inMemoryStore.get(docId);
       if (!currentMemory) {
-        currentMemory = { count: 0, analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
+        currentMemory = { count: 0, pdfCount: 0, analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
       }
       currentMemory.count += 1;
       if (incrementChat) currentMemory.chatCount += 1;
-      if (incrementPdf) currentMemory.analysisCount += 1;
+      if (incrementPdf) {
+        const prevPdf = currentMemory.pdfCount ?? currentMemory.analysisCount ?? 0;
+        currentMemory.pdfCount = prevPdf + 1;
+        currentMemory.analysisCount = currentMemory.pdfCount;
+      }
       currentMemory.updatedAt = Date.now();
       inMemoryStore.set(docId, currentMemory);
     } catch (writeErr) {
@@ -350,22 +358,30 @@ export async function incrementServerDailyUsage(
       // Resilient fallback to memory store
       let currentMemory = inMemoryStore.get(docId);
       if (!currentMemory) {
-        currentMemory = { count: 0, analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
+        currentMemory = { count: 0, pdfCount: 0, analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
       }
       currentMemory.count += 1;
       if (incrementChat) currentMemory.chatCount += 1;
-      if (incrementPdf) currentMemory.analysisCount += 1;
+      if (incrementPdf) {
+        const prevPdf = currentMemory.pdfCount ?? currentMemory.analysisCount ?? 0;
+        currentMemory.pdfCount = prevPdf + 1;
+        currentMemory.analysisCount = currentMemory.pdfCount;
+      }
       currentMemory.updatedAt = Date.now();
       inMemoryStore.set(docId, currentMemory);
     }
   } else {
     let currentMemory = inMemoryStore.get(docId);
     if (!currentMemory) {
-      currentMemory = { count: 0, analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
+      currentMemory = { count: 0, pdfCount: 0, analysisCount: 0, chatCount: 0, updatedAt: Date.now() };
     }
     currentMemory.count += 1;
     if (incrementChat) currentMemory.chatCount += 1;
-    if (incrementPdf) currentMemory.analysisCount += 1;
+    if (incrementPdf) {
+      const prevPdf = currentMemory.pdfCount ?? currentMemory.analysisCount ?? 0;
+      currentMemory.pdfCount = prevPdf + 1;
+      currentMemory.analysisCount = currentMemory.pdfCount;
+    }
     currentMemory.updatedAt = Date.now();
     inMemoryStore.set(docId, currentMemory);
   }

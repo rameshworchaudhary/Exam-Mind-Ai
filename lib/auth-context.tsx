@@ -41,8 +41,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   emailVerified: boolean;
   logout: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-  refreshDailyUsage: () => Promise<void>;
+  refreshProfile: (targetUid?: string) => Promise<void>;
+  refreshDailyUsage: (targetUid?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({

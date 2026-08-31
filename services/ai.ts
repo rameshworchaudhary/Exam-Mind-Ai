@@ -3,6 +3,8 @@ import Groq from "groq-sdk";
 import {
   analyzeSyllabusNvidia,
   analyzePYQNvidia,
+  getNvidiaClient,
+  NVIDIA_DEFAULT_MODEL,
   SyllabusAnalysisResult,
   PYQAnalysisResult,
 } from "./nvidia";
@@ -1007,24 +1009,85 @@ export function parseSyllabusTextDeterministically(
   };
 }
 
+function formatParsedStudySyllabus(
+  parsed: ParsedStudySyllabus,
+  defaultSubject: string
+): ParsedStudySyllabus | null {
+  if (!parsed || !Array.isArray(parsed.units) || parsed.units.length === 0) {
+    return null;
+  }
+
+  let topicCount = 0;
+  const formattedUnits: SyllabusStudyUnit[] = parsed.units.map((u, uIdx) => {
+    const uNum = typeof u.unitNumber === "number" ? u.unitNumber : uIdx + 1;
+    const rawTopics = (u.topics || []) as Array<SyllabusStudyTopic | string>;
+    const unitTopics = Array.isArray(rawTopics)
+      ? rawTopics
+          .filter((t): t is SyllabusStudyTopic | string => {
+            if (typeof t === "string") return t.trim().length > 0;
+            return Boolean(t && typeof t.title === "string" && t.title.trim().length > 0);
+          })
+          .map((t, tIdx) => {
+            topicCount++;
+            const titleStr =
+              typeof t === "string"
+                ? t.trim()
+                : (t.title || `Topic ${tIdx + 1}`).trim();
+            const subtopics =
+              typeof t === "object" && Array.isArray(t.subtopics)
+                ? t.subtopics
+                : [];
+            const estMinutes =
+              typeof t === "object" && typeof t.estimatedMinutes === "number"
+                ? t.estimatedMinutes
+                : 20;
+
+            return {
+              id:
+                typeof t === "object" && t.id
+                  ? t.id
+                  : `unit-${uNum}-topic-${tIdx + 1}`,
+              title: titleStr || `Topic ${tIdx + 1}`,
+              subtopics,
+              estimatedMinutes: estMinutes,
+            };
+          })
+      : [];
+
+    return {
+      id: u.id || `unit-${uNum}`,
+      unitNumber: uNum,
+      title: u.title || `Unit ${uNum}`,
+      description: u.description || "",
+      topics: unitTopics,
+    };
+  });
+
+  if (formattedUnits.length === 0 || topicCount === 0) {
+    return null;
+  }
+
+  return {
+    subject: parsed.subject || defaultSubject,
+    courseCode: parsed.courseCode || "",
+    summary:
+      parsed.summary ||
+      `Syllabus covering ${formattedUnits.length} units and ${topicCount} topics.`,
+    units: formattedUnits,
+    totalTopics: topicCount || parsed.totalTopics || 1,
+  };
+}
+
 /**
  * Parses raw syllabus text into structured units, chapters, and topics.
+ * PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq -> FALLBACK: Deterministic parser.
  * Strictly grounded in the provided syllabus text without hallucinating or inventing topics.
  */
 export async function extractDetailedStudySyllabus(
   syllabusText: string,
   subject: string = "General"
 ): Promise<ParsedStudySyllabus> {
-  // Strategy 1: AI structured extraction via Groq
-  try {
-    const result = await withRetry(async () => {
-      const groq = getGroq();
-      const res = await groq.chat.completions.create({
-        model: GROQ_DEFAULT_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert academic curriculum and syllabus parser.
+  const parseSystemPrompt = `You are an expert academic curriculum and syllabus parser.
 Your task is to extract exact units/modules, chapters, topics, and subtopics from the uploaded syllabus.
 
 CRITICAL GROUNDING AND EXTRACTION RULES:
@@ -1032,11 +1095,9 @@ CRITICAL GROUNDING AND EXTRACTION RULES:
 2. Stay strictly grounded in the syllabus text provided. DO NOT invent topics, chapters, or units not mentioned in the text.
 3. If subtopics are not explicitly present in the text, leave the "subtopics" array empty ([]).
 4. If a unit has multiple topics, extract each topic clearly.
-5. Output ONLY a valid JSON object matching the requested schema. No markdown formatting, code fences, or explanation.`,
-          },
-          {
-            role: "user",
-            content: `Extract the syllabus structure for "${subject}".
+5. Output ONLY a valid JSON object matching the requested schema. No markdown formatting, code fences, or explanation.`;
+
+  const parseUserPrompt = `Extract the syllabus structure for "${subject}".
 
 Syllabus Content:
 ${syllabusText.slice(0, 8000)}
@@ -1063,8 +1124,43 @@ Return ONLY a valid JSON object matching this schema:
     }
   ],
   "totalTopics": 8
-}`,
-          },
+}`;
+
+  // Strategy 1: PRIMARY - NVIDIA Nemotron
+  try {
+    const nvidia = getNvidiaClient();
+    const res = await nvidia.chat.completions.create({
+      model: NVIDIA_DEFAULT_MODEL,
+      messages: [
+        { role: "system", content: parseSystemPrompt },
+        { role: "user", content: parseUserPrompt },
+      ],
+      temperature: 0.1,
+      max_tokens: 3500,
+    });
+
+    const raw = res.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse<ParsedStudySyllabus>(raw);
+
+    if (parsed) {
+      const formatted = formatParsedStudySyllabus(parsed, subject);
+      if (formatted && formatted.units.length > 0) {
+        return formatted;
+      }
+    }
+  } catch (nvidiaErr) {
+    console.warn("NVIDIA Nemotron syllabus extraction failed, falling back to Groq:", nvidiaErr);
+  }
+
+  // Strategy 2: FALLBACK - Groq
+  try {
+    const result = await withRetry(async () => {
+      const groq = getGroq();
+      const res = await groq.chat.completions.create({
+        model: GROQ_DEFAULT_MODEL,
+        messages: [
+          { role: "system", content: parseSystemPrompt },
+          { role: "user", content: parseUserPrompt },
         ],
         temperature: 0.1,
         max_tokens: 3500,
@@ -1073,79 +1169,18 @@ Return ONLY a valid JSON object matching this schema:
       const raw = res.choices?.[0]?.message?.content || "";
       const parsed = safeJsonParse<ParsedStudySyllabus>(raw);
 
-      if (!parsed || !Array.isArray(parsed.units) || parsed.units.length === 0) {
-        return null;
-      }
-
-      let topicCount = 0;
-      const formattedUnits: SyllabusStudyUnit[] = parsed.units.map((u, uIdx) => {
-        const uNum = typeof u.unitNumber === "number" ? u.unitNumber : uIdx + 1;
-        const rawTopics = (u.topics || []) as Array<SyllabusStudyTopic | string>;
-        const unitTopics = Array.isArray(rawTopics)
-          ? rawTopics
-              .filter((t): t is SyllabusStudyTopic | string => {
-                if (typeof t === "string") return t.trim().length > 0;
-                return Boolean(t && typeof t.title === "string" && t.title.trim().length > 0);
-              })
-              .map((t, tIdx) => {
-                topicCount++;
-                const titleStr =
-                  typeof t === "string"
-                    ? t.trim()
-                    : (t.title || `Topic ${tIdx + 1}`).trim();
-                const subtopics =
-                  typeof t === "object" && Array.isArray(t.subtopics)
-                    ? t.subtopics
-                    : [];
-                const estMinutes =
-                  typeof t === "object" && typeof t.estimatedMinutes === "number"
-                    ? t.estimatedMinutes
-                    : 20;
-
-                return {
-                  id:
-                    typeof t === "object" && t.id
-                      ? t.id
-                      : `unit-${uNum}-topic-${tIdx + 1}`,
-                  title: titleStr || `Topic ${tIdx + 1}`,
-                  subtopics,
-                  estimatedMinutes: estMinutes,
-                };
-              })
-          : [];
-
-        return {
-          id: u.id || `unit-${uNum}`,
-          unitNumber: uNum,
-          title: u.title || `Unit ${uNum}`,
-          description: u.description || "",
-          topics: unitTopics,
-        };
-      });
-
-      if (formattedUnits.length === 0 || topicCount === 0) {
-        return null;
-      }
-
-      return {
-        subject: parsed.subject || subject,
-        courseCode: parsed.courseCode || "",
-        summary:
-          parsed.summary ||
-          `Syllabus covering ${formattedUnits.length} units and ${topicCount} topics.`,
-        units: formattedUnits,
-        totalTopics: topicCount || parsed.totalTopics || 1,
-      };
+      if (!parsed) return null;
+      return formatParsedStudySyllabus(parsed, subject);
     });
 
     if (result && result.units.length > 0) {
       return result;
     }
-  } catch (aiErr) {
-    console.warn("Groq AI syllabus extraction encountered an error, falling back to deterministic parser:", aiErr);
+  } catch (groqErr) {
+    console.warn("Groq AI syllabus extraction encountered an error, falling back to deterministic parser:", groqErr);
   }
 
-  // Strategy 2: Resilient deterministic text parser fallback
+  // Strategy 3: Resilient deterministic text parser fallback
   const deterministicResult = parseSyllabusTextDeterministically(
     syllabusText,
     subject
@@ -1161,6 +1196,7 @@ Return ONLY a valid JSON object matching this schema:
 
 /**
  * Generates an 8-part exam preparation lesson for a specific syllabus topic.
+ * PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq.
  * Supports English and natural Indian Hinglish.
  */
 export async function teachSyllabusTopic(input: {
@@ -1171,12 +1207,10 @@ export async function teachSyllabusTopic(input: {
   language: "english" | "hinglish";
   syllabusSummary?: string;
 }): Promise<SyllabusTopicLesson> {
-  return withRetry(async () => {
-    const groq = getGroq();
-    const isHinglish = input.language === "hinglish";
+  const isHinglish = input.language === "hinglish";
 
-    const systemPrompt = isHinglish
-      ? `You are PadhaiHub's friendly, expert Indian professor & exam coach.
+  const systemPrompt = isHinglish
+    ? `You are PadhaiHub's friendly, expert Indian professor & exam coach.
 You teach students in natural, conversational Indian Hinglish (a natural mix of Hindi in Roman script and English).
 RULES FOR HINGLISH:
 - Speak like a friendly college teacher: "Chalo ab is topic ko basic se samajhte hain...", "Yeh exam me aksar 5 marks ka aata hai...", "Dhyan se dekho..."
@@ -1184,7 +1218,7 @@ RULES FOR HINGLISH:
 - Do NOT translate technical definitions into Hindi awkwardly.
 - Keep the tone super encouraging, clear, and exam-oriented.
 - You MUST output ONLY valid JSON matching the exact schema with all 8 requested components. No markdown outside JSON.`
-      : `You are PadhaiHub's top academic professor and exam mentor.
+    : `You are PadhaiHub's top academic professor and exam mentor.
 You teach students in clear, simple, high-yield exam-oriented English.
 RULES FOR ENGLISH:
 - Keep explanations crystal clear, engaging, and structured.
@@ -1192,7 +1226,7 @@ RULES FOR ENGLISH:
 - Emphasize exam-scoring points, diagrams/flow representations, and frequent mistakes.
 - You MUST output ONLY valid JSON matching the exact schema with all 8 requested components. No markdown outside JSON.`;
 
-    const userPrompt = `Teach the syllabus topic: "${input.topicTitle}"
+  const userPrompt = `Teach the syllabus topic: "${input.topicTitle}"
 From Unit/Module: "${input.unitTitle}"
 Subject: "${input.subject}"
 ${input.subtopics && input.subtopics.length > 0 ? `Subtopics to cover: ${input.subtopics.join(", ")}` : ""}
@@ -1244,6 +1278,45 @@ Return ONLY a valid JSON object matching this schema:
   ]
 }`;
 
+  // Strategy 1: PRIMARY - NVIDIA Nemotron
+  try {
+    const nvidia = getNvidiaClient();
+    const res = await nvidia.chat.completions.create({
+      model: NVIDIA_DEFAULT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 3500,
+    });
+
+    const raw = res.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse<SyllabusTopicLesson>(raw);
+
+    if (parsed && parsed.simpleExplanation) {
+      return {
+        topicName: parsed.topicName || input.topicTitle,
+        unitName: parsed.unitName || input.unitTitle,
+        subject: parsed.subject || input.subject,
+        language: input.language,
+        simpleExplanation: parsed.simpleExplanation || "Topic explanation.",
+        importantConcepts: Array.isArray(parsed.importantConcepts) ? parsed.importantConcepts : [],
+        examOrientedPoints: Array.isArray(parsed.examOrientedPoints) ? parsed.examOrientedPoints : [],
+        example: parsed.example || undefined,
+        importantDefinitions: Array.isArray(parsed.importantDefinitions) ? parsed.importantDefinitions : [],
+        possibleExamQuestions: Array.isArray(parsed.possibleExamQuestions) ? parsed.possibleExamQuestions : [],
+        shortRevision: Array.isArray(parsed.shortRevision) ? parsed.shortRevision : [],
+        quickQuiz: Array.isArray(parsed.quickQuiz) ? parsed.quickQuiz : [],
+      };
+    }
+  } catch (nvidiaErr) {
+    console.warn("NVIDIA Nemotron teach topic failed, falling back to Groq:", nvidiaErr);
+  }
+
+  // Strategy 2: FALLBACK - Groq
+  return withRetry(async () => {
+    const groq = getGroq();
     const res = await groq.chat.completions.create({
       model: GROQ_DEFAULT_MODEL,
       messages: [
@@ -1280,25 +1353,24 @@ Return ONLY a valid JSON object matching this schema:
 
 /**
  * Generates the final comprehensive syllabus completion package when all topics are finished.
+ * PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq.
  */
 export async function generateSyllabusCompletion(input: {
   subject: string;
   units: SyllabusStudyUnit[];
   language: "english" | "hinglish";
 }): Promise<SyllabusCompletionSummary> {
-  return withRetry(async () => {
-    const groq = getGroq();
-    const isHinglish = input.language === "hinglish";
+  const isHinglish = input.language === "hinglish";
 
-    const topicsList = input.units.flatMap((u) =>
-      u.topics.map((t) => `${u.title}: ${t.title}`)
-    );
+  const topicsList = input.units.flatMap((u) =>
+    u.topics.map((t) => `${u.title}: ${t.title}`)
+  );
 
-    const systemPrompt = isHinglish
-      ? "You are PadhaiHub's chief academic mentor. Deliver the final syllabus completion package in natural, encouraging Hinglish with technical terms in English."
-      : "You are PadhaiHub's chief academic mentor. Deliver the final comprehensive exam revision package in clear, high-yield English.";
+  const systemPrompt = isHinglish
+    ? "You are PadhaiHub's chief academic mentor. Deliver the final syllabus completion package in natural, encouraging Hinglish with technical terms in English."
+    : "You are PadhaiHub's chief academic mentor. Deliver the final comprehensive exam revision package in clear, high-yield English.";
 
-    const userPrompt = `The student has completed ALL topics in the syllabus for: "${input.subject}".
+  const userPrompt = `The student has completed ALL topics in the syllabus for: "${input.subject}".
 
 Syllabus Topics Covered:
 ${topicsList.slice(0, 30).join("\n")}
@@ -1345,6 +1417,40 @@ Return ONLY a valid JSON object matching this schema:
   ]
 }`;
 
+  // Strategy 1: PRIMARY - NVIDIA Nemotron
+  try {
+    const nvidia = getNvidiaClient();
+    const res = await nvidia.chat.completions.create({
+      model: NVIDIA_DEFAULT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.2,
+      max_tokens: 3500,
+    });
+
+    const raw = res.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse<SyllabusCompletionSummary>(raw);
+
+    if (parsed && Array.isArray(parsed.overallRevision)) {
+      return {
+        subject: parsed.subject || input.subject,
+        totalTopicsCovered: topicsList.length,
+        overallRevision: parsed.overallRevision || [],
+        importantExamTopics: Array.isArray(parsed.importantExamTopics) ? parsed.importantExamTopics : [],
+        importantDefinitions: Array.isArray(parsed.importantDefinitions) ? parsed.importantDefinitions : [],
+        importantExamQuestions: Array.isArray(parsed.importantExamQuestions) ? parsed.importantExamQuestions : [],
+        finalMockQuiz: Array.isArray(parsed.finalMockQuiz) ? parsed.finalMockQuiz : [],
+      };
+    }
+  } catch (nvidiaErr) {
+    console.warn("NVIDIA Nemotron syllabus completion failed, falling back to Groq:", nvidiaErr);
+  }
+
+  // Strategy 2: FALLBACK - Groq
+  return withRetry(async () => {
+    const groq = getGroq();
     const res = await groq.chat.completions.create({
       model: GROQ_DEFAULT_MODEL,
       messages: [
