@@ -3,10 +3,13 @@ import Groq from "groq-sdk";
 import {
   analyzeSyllabusNvidia,
   analyzePYQNvidia,
-  getNvidiaClient,
-  NVIDIA_DEFAULT_MODEL,
+  callNvidiaChatCompletion,
   SyllabusAnalysisResult,
   PYQAnalysisResult,
+  SyllabusUnit,
+  PYQRepeatedQuestion,
+  PYQImportantTopic,
+  PYQPrediction,
 } from "./nvidia";
 
 export const GROQ_DEFAULT_MODEL =
@@ -27,6 +30,34 @@ export function getGroq(): Groq {
   });
 }
 
+export async function checkAiProvidersHealth(): Promise<{
+  nvidia: { success: boolean; configured: boolean; model?: string; reason?: string };
+  groq: { success: boolean; configured: boolean; model?: string; reason?: string };
+}> {
+  const nvidiaKey = process.env.NVIDIA_API_KEY?.trim();
+  const groqKey = process.env.GROQ_API_KEY?.trim();
+  const nvidiaModel = process.env.NVIDIA_MODEL?.trim() || "nvidia/nemotron-3-super-120b-a12b";
+  const groqModel = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+
+  const nvidiaHealthy = Boolean(nvidiaKey && nvidiaKey !== "dummy_nvidia_key");
+  const groqHealthy = Boolean(groqKey && groqKey !== "placeholder_key");
+
+  return {
+    nvidia: {
+      success: nvidiaHealthy,
+      configured: nvidiaHealthy,
+      model: nvidiaModel,
+      reason: nvidiaHealthy ? undefined : "NVIDIA_API_KEY missing or placeholder",
+    },
+    groq: {
+      success: groqHealthy,
+      configured: groqHealthy,
+      model: groqModel,
+      reason: groqHealthy ? undefined : "GROQ_API_KEY missing or placeholder",
+    },
+  };
+}
+
 // ======================================================
 // RETRY HELPER
 // ======================================================
@@ -34,21 +65,48 @@ async function withRetry<T>(
   fn: () => Promise<T>,
   retries = 2
 ): Promise<T> {
+  console.log("[AI][Groq] Calling Groq...");
+
   let lastError: unknown;
   for (let i = 0; i <= retries; i++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error;
-      const msg = error instanceof Error ? error.message : String(error);
+      const rawMessage =
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+            ? error
+            : JSON.stringify(error ?? {});
+      const msg = rawMessage.toLowerCase();
+      const status =
+        typeof error === "object" && error !== null && "status" in error
+          ? Number((error as { status?: number }).status)
+          : undefined;
+
+      const isGroqRateLimit =
+        status === 429 ||
+        msg.includes("rate_limit_exceeded") ||
+        msg.includes("tokens per day") ||
+        msg.includes("tpd") ||
+        msg.includes("too many requests");
+
+      if (isGroqRateLimit) {
+        console.warn("[AI][Groq] Rate limit reached; not retrying the same Groq request.");
+        throw error;
+      }
+
       if (
         msg.includes("not configured") ||
-        msg.includes("API_KEY") ||
+        msg.includes("api_key") ||
         msg.includes("401") ||
         i === retries
       ) {
         break;
       }
+
+      console.warn(`[AI][Groq] Groq retry ${i + 1}/${retries}: ${rawMessage}`);
       await new Promise((r) => setTimeout(r, 600 * (i + 1)));
     }
   }
@@ -107,27 +165,167 @@ function safeJsonParse<T = Record<string, unknown>>(content: string): T | null {
 }
 
 // ======================================================
-// 1. SYLLABUS ANALYZER (Powered by NVIDIA Nemotron)
+// 1. SYLLABUS ANALYZER (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
 // ======================================================
 export async function analyzeSyllabus(
   syllabusText: string,
   subject: string = "General"
 ): Promise<SyllabusAnalysisResult> {
-  return await analyzeSyllabusNvidia(syllabusText, subject);
+  // Strategy 1: PRIMARY - NVIDIA Nemotron
+  try {
+    return await analyzeSyllabusNvidia(syllabusText, subject);
+  } catch (nvidiaErr) {
+    console.warn(
+      "[AI] NVIDIA Nemotron syllabus analysis failed, falling back to Groq:",
+      nvidiaErr instanceof Error ? nvidiaErr.message : nvidiaErr
+    );
+  }
+
+  // Strategy 2: FALLBACK - Groq
+  return withRetry(async () => {
+    const groq = getGroq();
+    const response = await groq.chat.completions.create({
+      model: GROQ_DEFAULT_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert AI academic syllabus analyzer. Preserve all original terminology, languages (English, Hindi, Hinglish), Unicode characters, mathematical symbols, degree symbols, special characters (/, &, -, :, %, ()), and formulas exactly as written. You MUST output ONLY valid JSON without markdown formatting, code fences, or introductory text.",
+        },
+        {
+          role: "user",
+          content: `Analyze this syllabus for ${subject}.
+Return ONLY a valid JSON object matching this schema:
+{
+  "units": [{"name": "Unit Name", "topics": ["Topic 1", "Topic 2"], "weightage": 20}],
+  "summary": "Concise overview of syllabus and coverage",
+  "importantTopics": ["High Weightage Topic 1", "High Weightage Topic 2"],
+  "totalTopics": 5
+}
+
+Syllabus content:
+${syllabusText.slice(0, 6000)}`,
+        },
+      ],
+      temperature: 0.2,
+      max_tokens: 2200,
+    });
+
+    const content = response.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse<{
+      units?: SyllabusUnit[];
+      summary?: string;
+      importantTopics?: string[];
+      totalTopics?: number;
+    }>(content);
+
+    if (!parsed) {
+      throw new Error(
+        "Groq returned a response that could not be parsed as JSON: " +
+          content.slice(0, 200)
+      );
+    }
+
+    return {
+      units: Array.isArray(parsed.units) ? parsed.units : [],
+      summary: parsed.summary || "No summary available",
+      importantTopics: Array.isArray(parsed.importantTopics)
+        ? parsed.importantTopics
+        : [],
+      totalTopics:
+        typeof parsed.totalTopics === "number"
+          ? parsed.totalTopics
+          : parsed.units?.length || 0,
+    };
+  });
 }
 
 // ======================================================
-// 2. PYQ ANALYZER (Powered by NVIDIA Nemotron)
+// 2. PYQ ANALYZER (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
 // ======================================================
 export async function analyzePYQ(
   pyqText: string,
   subject: string = "General"
 ): Promise<PYQAnalysisResult> {
-  return await analyzePYQNvidia(pyqText, subject);
+  // Strategy 1: PRIMARY - NVIDIA Nemotron
+  try {
+    return await analyzePYQNvidia(pyqText, subject);
+  } catch (nvidiaErr) {
+    console.warn(
+      "[AI] NVIDIA Nemotron PYQ analysis failed, falling back to Groq:",
+      nvidiaErr instanceof Error ? nvidiaErr.message : nvidiaErr
+    );
+  }
+
+  // Strategy 2: FALLBACK - Groq
+  return withRetry(async () => {
+    const groq = getGroq();
+    const response = await groq.chat.completions.create({
+      model: GROQ_DEFAULT_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert AI exam question paper analyzer and predictor. Preserve all original terminology, languages (English, Hindi, Hinglish), Unicode characters, mathematical symbols, degree symbols, special characters (/, &, -, :, %, ()), and formulas exactly as written. You MUST output ONLY valid JSON without markdown formatting, code fences, or introductory text.",
+        },
+        {
+          role: "user",
+          content: `Analyze these previous year questions (PYQ) for ${subject}.
+Return ONLY a valid JSON object matching this schema:
+{
+  "repeatedQuestions": [
+    {"question": "Exact repeated question text", "frequency": 3, "probability": 85}
+  ],
+  "importantTopics": [
+    {"topic": "Important Topic Name", "weightage": 25}
+  ],
+  "predictions": [
+    {"question": "Predicted question for upcoming exam", "probability": 90, "reasoning": "Reasoning based on trend"}
+  ],
+  "trends": [
+    "Trend description 1",
+    "Trend description 2"
+  ]
+}
+
+PYQ content:
+${pyqText.slice(0, 6000)}`,
+        },
+      ],
+      temperature: 0.2,
+      max_tokens: 2500,
+    });
+
+    const content = response.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse<{
+      repeatedQuestions?: PYQRepeatedQuestion[];
+      importantTopics?: PYQImportantTopic[];
+      predictions?: PYQPrediction[];
+      trends?: string[];
+    }>(content);
+
+    if (!parsed) {
+      throw new Error(
+        "Groq returned a response that could not be parsed as JSON: " +
+          content.slice(0, 200)
+      );
+    }
+
+    return {
+      repeatedQuestions: Array.isArray(parsed.repeatedQuestions)
+        ? parsed.repeatedQuestions
+        : [],
+      importantTopics: Array.isArray(parsed.importantTopics)
+        ? parsed.importantTopics
+        : [],
+      predictions: Array.isArray(parsed.predictions) ? parsed.predictions : [],
+      trends: Array.isArray(parsed.trends) ? parsed.trends : [],
+    };
+  });
 }
 
 // ======================================================
-// 3. NOTES GENERATOR (Powered by Groq)
+// 3. NOTES GENERATOR (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
 // ======================================================
 export interface NotesResult {
   title: string;
@@ -142,19 +340,10 @@ export async function generateNotes(
   subject: string,
   noteType: string
 ): Promise<NotesResult> {
-  return withRetry(async () => {
-    const groq = getGroq();
-    const res = await groq.chat.completions.create({
-      model: GROQ_DEFAULT_MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert academic tutor. You MUST output ONLY valid JSON without markdown formatting, code fences, or conversational filler.",
-        },
-        {
-          role: "user",
-          content: `Generate structured ${noteType} revision notes for the topic "${topic}" in subject "${subject}".
+  const systemPrompt =
+    "You are an expert academic tutor. Preserve all original terminology, languages (English, Hindi, Hinglish), Unicode characters, mathematical symbols, degree symbols, special characters (/, &, -, :, %, ()), and formulas exactly as written. You MUST output ONLY valid JSON without markdown formatting, code fences, or conversational filler.";
+
+  const userPrompt = `Generate structured ${noteType} revision notes for the topic "${topic}" in subject "${subject}".
 Return ONLY a valid JSON object matching this schema:
 {
   "title": "${topic} Notes",
@@ -162,11 +351,58 @@ Return ONLY a valid JSON object matching this schema:
   "keyPoints": ["Crucial bullet point 1", "Crucial bullet point 2", "Crucial bullet point 3"],
   "formulas": ["Relevant formula or equation if applicable"],
   "definitions": {"KeyTerm": "Clear concise definition"}
-}`,
-        },
+}`;
+
+  // Strategy 1: PRIMARY - NVIDIA Nemotron
+  try {
+    const res = await callNvidiaChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
       temperature: 0.3,
-      max_tokens: 1800,
+      max_tokens: 2200,
+    });
+
+    const raw = res.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse<{
+      title?: string;
+      content?: string;
+      keyPoints?: string[];
+      formulas?: string[];
+      definitions?: Record<string, string>;
+    }>(raw);
+
+    if (parsed && (parsed.content || parsed.title)) {
+      return {
+        title: parsed.title || `${topic} Notes`,
+        content: parsed.content || "Notes generation produced no content.",
+        keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
+        formulas: Array.isArray(parsed.formulas) ? parsed.formulas : [],
+        definitions:
+          parsed.definitions && typeof parsed.definitions === "object"
+            ? parsed.definitions
+            : {},
+      };
+    }
+  } catch (nvidiaErr) {
+    console.warn(
+      "[AI] NVIDIA Nemotron notes generation failed, falling back to Groq:",
+      nvidiaErr instanceof Error ? nvidiaErr.message : nvidiaErr
+    );
+  }
+
+  // Strategy 2: FALLBACK - Groq
+  return withRetry(async () => {
+    const groq = getGroq();
+    const res = await groq.chat.completions.create({
+      model: GROQ_DEFAULT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 2200,
     });
 
     const raw = res.choices?.[0]?.message?.content || "";
@@ -196,7 +432,7 @@ Return ONLY a valid JSON object matching this schema:
 }
 
 // ======================================================
-// 4. ASSIGNMENT GENERATOR (Powered by Groq)
+// 4. ASSIGNMENT GENERATOR (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
 // ======================================================
 export interface AssignmentSection {
   heading: string;
@@ -213,13 +449,10 @@ export async function generateAssignmentAnswer(
   question: string,
   subject: string
 ): Promise<AssignmentResult> {
-  return withRetry(async () => {
-    let raw = "";
+  const systemPrompt =
+    "You are a distinguished university professor, academic researcher, and senior subject matter expert. Your role is to write comprehensive, publication-grade academic assignments and scholarly solutions for university-level coursework. Your answers must be deeply detailed, rigorous, and academic in tone with formal definitions, theoretical foundations, concrete examples, practical applications, critical evaluations, and a definitive conclusion. Preserve all original terminology, languages (English, Hindi, Hinglish), Unicode characters, mathematical symbols, degree symbols, special characters (/, &, -, :, %, ()), and formulas exactly as written. You MUST output ONLY a valid JSON object matching the requested schema without conversational commentary.";
 
-    const systemPrompt =
-      "You are a distinguished university professor, academic researcher, and senior subject matter expert. Your role is to write comprehensive, publication-grade academic assignments and scholarly solutions for university-level coursework. Your answers must be deeply detailed, rigorous, and academic in tone with formal definitions, theoretical foundations, concrete examples, practical applications, critical evaluations, and a definitive conclusion. You MUST output ONLY a valid JSON object matching the requested schema without conversational commentary.";
-
-    const userPrompt = `Generate an in-depth, university-level academic assignment paper for the following subject and assignment prompt:
+  const userPrompt = `Generate an in-depth, university-level academic assignment paper for the following subject and assignment prompt:
 
 SUBJECT: "${subject}"
 ASSIGNMENT PROMPT / QUESTIONS: "${question}"
@@ -284,147 +517,139 @@ Return ONLY a valid JSON object with this exact schema:
   ]
 }`;
 
+  let raw = "";
+
+  // Strategy 1: PRIMARY - NVIDIA Nemotron
+  try {
+    const res = await callNvidiaChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.35,
+      max_tokens: 3800,
+    });
+    raw = res.choices?.[0]?.message?.content || "";
+  } catch (nvidiaErr) {
+    console.warn(
+      "[AI] NVIDIA Nemotron assignment generation failed, falling back to Groq:",
+      nvidiaErr instanceof Error ? nvidiaErr.message : nvidiaErr
+    );
+
+    // Strategy 2: FALLBACK - Groq
     try {
       const groq = getGroq();
       const res = await groq.chat.completions.create({
         model: GROQ_DEFAULT_MODEL,
         messages: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
-          {
-            role: "user",
-            content: userPrompt,
-          },
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
         ],
         temperature: 0.35,
         max_tokens: 3800,
       });
       raw = res.choices?.[0]?.message?.content || "";
     } catch (groqErr) {
-      console.warn("Groq failed for assignment generation, attempting NVIDIA fallback:", groqErr instanceof Error ? groqErr.message : groqErr);
-      try {
-        const { getNvidiaClient, NVIDIA_DEFAULT_MODEL } = await import("./nvidia");
-        const nvidia = getNvidiaClient();
-        const res = await nvidia.chat.completions.create({
-          model: NVIDIA_DEFAULT_MODEL,
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            {
-              role: "user",
-              content: userPrompt,
-            },
-          ],
-          temperature: 0.35,
-          max_tokens: 3800,
-        });
-        raw = res.choices?.[0]?.message?.content || "";
-      } catch {
-        throw groqErr;
-      }
+      throw groqErr;
     }
+  }
 
-    let parsed = safeJsonParse<{
-      answer?: string;
-      wordCount?: number;
-      sections?: AssignmentSection[];
-    }>(raw);
+  let parsed = safeJsonParse<{
+    answer?: string;
+    wordCount?: number;
+    sections?: AssignmentSection[];
+  }>(raw);
 
-    // If safeJsonParse failed, attempt parsing after cleaning
-    if (!parsed) {
-      const cleaned = cleanJsonContent(raw);
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch {
-        // Fallback: structured heading parser
-        const lines = cleaned.split("\n");
-        const extractedSections: AssignmentSection[] = [];
-        let currentHeading = "1. Introduction & Overview";
-        let currentContent: string[] = [];
+  // If safeJsonParse failed, attempt parsing after cleaning
+  if (!parsed) {
+    const cleaned = cleanJsonContent(raw);
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // Fallback: structured heading parser
+      const lines = cleaned.split("\n");
+      const extractedSections: AssignmentSection[] = [];
+      let currentHeading = "1. Introduction & Overview";
+      let currentContent: string[] = [];
 
-        for (const line of lines) {
-          const headingMatch = line.match(/^#+\s*(.+)$/) || line.match(/^\*\*([^*]+)\*\*:\s*(.*)$/);
-          if (headingMatch) {
-            if (currentContent.length > 0) {
-              extractedSections.push({
-                heading: currentHeading,
-                content: currentContent.join("\n").trim(),
-              });
-              currentContent = [];
-            }
-            currentHeading = headingMatch[1].trim();
-            if (headingMatch[2]) {
-              currentContent.push(headingMatch[2]);
-            }
-          } else {
-            currentContent.push(line);
+      for (const line of lines) {
+        const headingMatch = line.match(/^#+\s*(.+)$/) || line.match(/^\*\*([^*]+)\*\*:\s*(.*)$/);
+        if (headingMatch) {
+          if (currentContent.length > 0) {
+            extractedSections.push({
+              heading: currentHeading,
+              content: currentContent.join("\n").trim(),
+            });
+            currentContent = [];
           }
+          currentHeading = headingMatch[1].trim();
+          if (headingMatch[2]) {
+            currentContent.push(headingMatch[2]);
+          }
+        } else {
+          currentContent.push(line);
         }
-        if (currentContent.length > 0) {
-          extractedSections.push({
-            heading: currentHeading,
-            content: currentContent.join("\n").trim(),
-          });
-        }
-
-        const answerText = cleaned.trim() || raw.trim();
-        const words = (answerText.match(/\S+/g) || []).length || 300;
-        return {
-          answer: answerText || `Comprehensive assignment answer for: ${question}`,
-          wordCount: words,
-          sections:
-            extractedSections.length > 0
-              ? extractedSections
-              : [{ heading: "1. Detailed Solution & Analysis", content: answerText || `Comprehensive answer for: ${question}` }],
-        };
       }
-    }
+      if (currentContent.length > 0) {
+        extractedSections.push({
+          heading: currentHeading,
+          content: currentContent.join("\n").trim(),
+        });
+      }
 
-    if (!parsed) {
+      const answerText = cleaned.trim() || raw.trim();
+      const words = (answerText.match(/\S+/g) || []).length || 300;
       return {
-        answer: raw.trim(),
-        wordCount: (raw.match(/\S+/g) || []).length || 200,
-        sections: [{ heading: "Assignment Solution", content: raw.trim() }],
+        answer: answerText || `Comprehensive assignment answer for: ${question}`,
+        wordCount: words,
+        sections:
+          extractedSections.length > 0
+            ? extractedSections
+            : [{ heading: "1. Detailed Solution & Analysis", content: answerText || `Comprehensive answer for: ${question}` }],
       };
     }
+  }
 
-    const sections: AssignmentSection[] =
-      Array.isArray(parsed.sections) && parsed.sections.length > 0
-        ? parsed.sections.map((s) => ({
-            heading: s.heading || "Section",
-            content: s.content || "",
-          }))
-        : [{ heading: "1. Comprehensive Analysis", content: parsed.answer || "Assignment solution content." }];
-
-    const combinedFromSections = sections
-      .map((s) => `${s.heading}\n\n${s.content}`)
-      .join("\n\n\n");
-
-    const answer =
-      parsed.answer && parsed.answer.trim().length >= combinedFromSections.length * 0.75
-        ? parsed.answer.trim()
-        : combinedFromSections;
-
-    const computedWords = (answer.match(/\S+/g) || []).length;
-    const wordCount =
-      typeof parsed.wordCount === "number" && parsed.wordCount > 100
-        ? Math.max(parsed.wordCount, computedWords)
-        : computedWords;
-
+  if (!parsed) {
     return {
-      answer,
-      wordCount,
-      sections,
+      answer: raw.trim(),
+      wordCount: (raw.match(/\S+/g) || []).length || 200,
+      sections: [{ heading: "Assignment Solution", content: raw.trim() }],
     };
-  });
+  }
+
+  const sections: AssignmentSection[] =
+    Array.isArray(parsed.sections) && parsed.sections.length > 0
+      ? parsed.sections.map((s) => ({
+          heading: s.heading || "Section",
+          content: s.content || "",
+        }))
+      : [{ heading: "1. Comprehensive Analysis", content: parsed.answer || "Assignment solution content." }];
+
+  const combinedFromSections = sections
+    .map((s) => `${s.heading}\n\n${s.content}`)
+    .join("\n\n\n");
+
+  const answer =
+    parsed.answer && parsed.answer.trim().length >= combinedFromSections.length * 0.75
+      ? parsed.answer.trim()
+      : combinedFromSections;
+
+  const computedWords = (answer.match(/\S+/g) || []).length;
+  const wordCount =
+    typeof parsed.wordCount === "number" && parsed.wordCount > 100
+      ? Math.max(parsed.wordCount, computedWords)
+      : computedWords;
+
+  return {
+    answer,
+    wordCount,
+    sections,
+  };
 }
 
 // ======================================================
-// 5. VIVA QUESTIONS GENERATOR (Powered by Groq)
+// 5. VIVA QUESTIONS GENERATOR (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
 // ======================================================
 export interface VivaQuestionItem {
   question: string;
@@ -441,19 +666,10 @@ export async function generateVivaQuestions(
   subject: string,
   topic: string
 ): Promise<VivaResult> {
-  return withRetry(async () => {
-    const groq = getGroq();
-    const res = await groq.chat.completions.create({
-      model: GROQ_DEFAULT_MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert university examiner generating oral viva voce exam questions. You MUST output ONLY valid JSON without markdown code fences or conversational text.",
-        },
-        {
-          role: "user",
-          content: `Generate 8 essential viva questions and model answers for topic "${topic}" in subject "${subject}".
+  const systemPrompt =
+    "You are an expert university examiner generating oral viva voce exam questions. Preserve all original terminology, languages (English, Hindi, Hinglish), Unicode characters, mathematical symbols, degree symbols, special characters (/, &, -, :, %, ()), and formulas exactly as written. You MUST output ONLY valid JSON without markdown code fences or conversational text.";
+
+  const userPrompt = `Generate 8 essential viva questions and model answers for topic "${topic}" in subject "${subject}".
 Return ONLY a valid JSON object matching this schema:
 {
   "questions": [
@@ -464,11 +680,52 @@ Return ONLY a valid JSON object matching this schema:
       "followUps": ["Follow-up question 1"]
     }
   ]
-}`,
-        },
+}`;
+
+  // Strategy 1: PRIMARY - NVIDIA Nemotron
+  try {
+    const res = await callNvidiaChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
       temperature: 0.3,
-      max_tokens: 2200,
+      max_tokens: 2500,
+    });
+
+    const raw = res.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse<{ questions?: VivaQuestionItem[] }>(raw);
+
+    if (parsed && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+      return {
+        questions: parsed.questions.map((q) => ({
+          question: q.question || "Viva Question",
+          answer: q.answer || "Model answer",
+          difficulty: (["easy", "medium", "hard"].includes(q.difficulty)
+            ? q.difficulty
+            : "medium") as "easy" | "medium" | "hard",
+          followUps: Array.isArray(q.followUps) ? q.followUps : [],
+        })),
+      };
+    }
+  } catch (nvidiaErr) {
+    console.warn(
+      "[AI] NVIDIA Nemotron viva questions failed, falling back to Groq:",
+      nvidiaErr instanceof Error ? nvidiaErr.message : nvidiaErr
+    );
+  }
+
+  // Strategy 2: FALLBACK - Groq
+  return withRetry(async () => {
+    const groq = getGroq();
+    const res = await groq.chat.completions.create({
+      model: GROQ_DEFAULT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 2500,
     });
 
     const raw = res.choices?.[0]?.message?.content || "";
@@ -492,7 +749,7 @@ Return ONLY a valid JSON object matching this schema:
 }
 
 // ======================================================
-// 6. STUDY PLANNER (Powered by Groq)
+// 6. STUDY PLANNER (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
 // ======================================================
 export interface StudyPlanDayTask {
   subject: string;
@@ -526,19 +783,10 @@ export async function generateStudyPlan(input: {
     Math.ceil((new Date(input.examDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   );
 
-  return withRetry(async () => {
-    const groq = getGroq();
-    const res = await groq.chat.completions.create({
-      model: GROQ_DEFAULT_MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert academic study strategist. You MUST output ONLY valid JSON without markdown code fences or conversational text.",
-        },
-        {
-          role: "user",
-          content: `Create an intensive, realistic 7-day preparation schedule for a student.
+  const systemPrompt =
+    "You are an expert academic study strategist. Preserve all original terminology, languages (English, Hindi, Hinglish), Unicode characters, mathematical symbols, degree symbols, special characters (/, &, -, :, %, ()), and formulas exactly as written. You MUST output ONLY valid JSON without markdown code fences or conversational text.";
+
+  const userPrompt = `Create an intensive, realistic 7-day preparation schedule for a student.
 Target Exam Date: ${input.examDate} (${daysLeft} days away)
 Subjects: ${input.subjects.join(", ")}
 Current Prep Level: ${input.preparationLevel}
@@ -559,11 +807,53 @@ Return ONLY a valid JSON object matching this schema:
   ],
   "weeklyGoals": ["Goal 1", "Goal 2"],
   "tips": ["Tip 1", "Tip 2"]
-}`,
-        },
+}`;
+
+  // Strategy 1: PRIMARY - NVIDIA Nemotron
+  try {
+    const res = await callNvidiaChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
       temperature: 0.3,
-      max_tokens: 2500,
+      max_tokens: 2800,
+    });
+
+    const raw = res.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse<{
+      overview?: string;
+      dailyPlan?: StudyPlanDay[];
+      weeklyGoals?: string[];
+      tips?: string[];
+    }>(raw);
+
+    if (parsed && Array.isArray(parsed.dailyPlan) && parsed.dailyPlan.length > 0) {
+      return {
+        overview: parsed.overview || "Custom study timetable",
+        dailyPlan: parsed.dailyPlan,
+        weeklyGoals: Array.isArray(parsed.weeklyGoals) ? parsed.weeklyGoals : [],
+        tips: Array.isArray(parsed.tips) ? parsed.tips : [],
+      };
+    }
+  } catch (nvidiaErr) {
+    console.warn(
+      "[AI] NVIDIA Nemotron study planner failed, falling back to Groq:",
+      nvidiaErr instanceof Error ? nvidiaErr.message : nvidiaErr
+    );
+  }
+
+  // Strategy 2: FALLBACK - Groq
+  return withRetry(async () => {
+    const groq = getGroq();
+    const res = await groq.chat.completions.create({
+      model: GROQ_DEFAULT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 2800,
     });
 
     const raw = res.choices?.[0]?.message?.content || "";
@@ -588,7 +878,7 @@ Return ONLY a valid JSON object matching this schema:
 }
 
 // ======================================================
-// 7. PERFORMANCE PREDICTOR (Powered by Groq)
+// 7. PERFORMANCE PREDICTOR (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
 // ======================================================
 export interface BreakdownFactor {
   factor: string;
@@ -613,19 +903,10 @@ export async function predictPerformance(input: {
   syllabusCompletion: number;
   subjects: string[];
 }): Promise<PredictionResult> {
-  return withRetry(async () => {
-    const groq = getGroq();
-    const res = await groq.chat.completions.create({
-      model: GROQ_DEFAULT_MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert academic evaluator and predictive statistical model for student performance. You MUST output ONLY valid JSON without markdown code fences or conversational text.",
-        },
-        {
-          role: "user",
-          content: `Predict student exam outcome based on these inputs:
+  const systemPrompt =
+    "You are an expert academic evaluator and predictive statistical model for student performance. Preserve all original terminology, languages (English, Hindi, Hinglish), Unicode characters, mathematical symbols, degree symbols, special characters (/, &, -, :, %, ()), and formulas exactly as written. You MUST output ONLY valid JSON without markdown code fences or conversational text.";
+
+  const userPrompt = `Predict student exam outcome based on these inputs:
 Attendance: ${input.attendance}%
 Internal Assessment Marks: ${input.internalMarks}/100
 Daily Study Hours: ${input.studyHours} hours/day
@@ -646,11 +927,62 @@ Return ONLY a valid JSON object matching this schema:
     {"factor": "Study Consistency", "score": ${Math.min(100, input.studyHours * 15)}, "impact": "medium"},
     {"factor": "Syllabus Coverage", "score": ${input.syllabusCompletion}, "impact": "critical"}
   ]
-}`,
-        },
+}`;
+
+  // Strategy 1: PRIMARY - NVIDIA Nemotron
+  try {
+    const res = await callNvidiaChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
       temperature: 0.2,
-      max_tokens: 1500,
+      max_tokens: 1800,
+    });
+
+    const raw = res.choices?.[0]?.message?.content || "";
+    const parsed = safeJsonParse<{
+      passProbability?: number;
+      predictedMarks?: number;
+      grade?: string;
+      weakSubjects?: string[];
+      strengths?: string[];
+      recommendations?: string[];
+      breakdown?: BreakdownFactor[];
+    }>(raw);
+
+    if (parsed && typeof parsed.passProbability === "number") {
+      return {
+        passProbability: parsed.passProbability,
+        predictedMarks:
+          typeof parsed.predictedMarks === "number" ? parsed.predictedMarks : 70,
+        grade: parsed.grade || "B+",
+        weakSubjects: Array.isArray(parsed.weakSubjects) ? parsed.weakSubjects : [],
+        strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+        recommendations: Array.isArray(parsed.recommendations)
+          ? parsed.recommendations
+          : [],
+        breakdown: Array.isArray(parsed.breakdown) ? parsed.breakdown : [],
+      };
+    }
+  } catch (nvidiaErr) {
+    console.warn(
+      "[AI] NVIDIA Nemotron performance prediction failed, falling back to Groq:",
+      nvidiaErr instanceof Error ? nvidiaErr.message : nvidiaErr
+    );
+  }
+
+  // Strategy 2: FALLBACK - Groq
+  return withRetry(async () => {
+    const groq = getGroq();
+    const res = await groq.chat.completions.create({
+      model: GROQ_DEFAULT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.2,
+      max_tokens: 1800,
     });
 
     const raw = res.choices?.[0]?.message?.content || "";
@@ -685,36 +1017,59 @@ Return ONLY a valid JSON object matching this schema:
 }
 
 // ======================================================
-// 8. AI CHATBOT (Powered by Groq)
+// 8. AI CHATBOT (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
 // ======================================================
 export async function chatWithAI(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   subject?: string
 ): Promise<string> {
-  return withRetry(async () => {
-    const groq = getGroq();
-    const res = await groq.chat.completions.create({
-      model: GROQ_DEFAULT_MODEL,
-      messages: [
-        {
-          role: "system",
-          content: `You are PadhaiHub, an intelligent, empathetic, and highly capable academic study tutor.${
-            subject ? ` Current subject context: ${subject}.` : ""
-          } Provide accurate, encouraging, and easy-to-understand explanations with examples and structured formatting.
+  const systemPrompt = `You are PadhaiHub, an intelligent, empathetic, and highly capable academic study tutor.${
+    subject ? ` Current subject context: ${subject}.` : ""
+  } Provide accurate, encouraging, and easy-to-understand explanations with examples and structured formatting.
 
 Respond in the same language and communication style as the user's latest message unless the user explicitly requests another language.
 If the user speaks Hinglish, respond in natural Hinglish.
 If the user speaks English, respond in English.
 If the user speaks Hindi, respond in Hindi.
 If the user mixes Hindi and English, naturally match that mixed style.
+Preserve all original Unicode characters, mathematical symbols, formulas, and formatting.
 Do not unnecessarily translate the user's message.
 Do not force English when the user is speaking Hinglish or Hindi.
-Follow an explicit language request from the user.`,
-        },
+Follow an explicit language request from the user.`;
+
+  // Strategy 1: PRIMARY - NVIDIA Nemotron
+  try {
+    const res = await callNvidiaChatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
         ...messages.slice(-12),
       ],
       temperature: 0.5,
-      max_tokens: 1200,
+      max_tokens: 1500,
+    });
+
+    const reply = res.choices?.[0]?.message?.content?.trim();
+    if (reply) {
+      return reply;
+    }
+  } catch (nvidiaErr) {
+    console.warn(
+      "[AI] NVIDIA Nemotron chatbot failed, falling back to Groq:",
+      nvidiaErr instanceof Error ? nvidiaErr.message : nvidiaErr
+    );
+  }
+
+  // Strategy 2: FALLBACK - Groq
+  return withRetry(async () => {
+    const groq = getGroq();
+    const res = await groq.chat.completions.create({
+      model: GROQ_DEFAULT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages.slice(-12),
+      ],
+      temperature: 0.5,
+      max_tokens: 1500,
     });
 
     const reply = res.choices?.[0]?.message?.content?.trim();
@@ -803,9 +1158,9 @@ export interface SyllabusCompletionSummary {
 }
 
 /**
- * Deterministic syllabus parser for text when AI extraction is unneeded or produces irregular formatting.
- * Recognizes diverse heading formats:
- * - Unit 1, UNIT-I, Unit I, Module 1, Module-I, Chapter 1, Course Unit 1, Section 1, Part 1
+ * Resilient deterministic syllabus parser that breaks unstructured text into units & topics.
+ * Recognizes diverse heading formats with full Unicode (English, Hindi, Devanagari, symbols):
+ * - Unit 1, UNIT-I, Unit I, Module 1, Module-I, Chapter 1, Course Unit 1, Section 1, Part 1, इकाई, अध्याय
  * - Numbered headings (1. Heading, 1.1 Topic, etc.)
  * - Topic lists and bullet points
  */
@@ -822,11 +1177,11 @@ export function parseSyllabusTextDeterministically(
 
   if (lines.length === 0) return null;
 
-  // Regex patterns for unit/module/chapter/section boundaries
+  // Regex patterns for unit/module/chapter/section boundaries (supports Unicode & Multilingual)
   const unitPatterns = [
-    /^(?:unit|module|chapter|course\s+unit|part|section)\s*[-:#.]*\s*([0-9ivx]+|[a-z])\b\s*[:.-]?\s*(.*)$/i,
-    /^(?:unit|module|chapter|part)\s*[:#-]\s*(.+)$/i,
-    /^([0-9]{1,2})\.\s+([A-Z][A-Za-z0-9\s,–—\-&()]{3,})$/,
+    /^(?:unit|module|chapter|course\s+unit|part|section|इकाई|अध्याय|पाठ)\s*[-:#.]*\s*([0-9ivx]+|[a-z])\b\s*[:.-]?\s*(.*)$/iu,
+    /^(?:unit|module|chapter|part|इकाई|अध्याय)\s*[:#-]\s*(.+)$/iu,
+    /^([0-9]{1,2})\.\s+([\p{L}\p{N}\s,–—\-&()/%:°+]{3,})$/u,
   ];
 
   interface RawUnitSection {
@@ -906,7 +1261,7 @@ export function parseSyllabusTextDeterministically(
         rawUnits.push({
           unitNumber: uIdx,
           title: `Unit ${uIdx}: ${chunk[0]
-            .replace(/^[-*•0-9.)]+\s*/, "")
+            .replace(/^[-*•0-9.)]+\s*/u, "")
             .slice(0, 50)}`,
           rawLines: chunk,
         });
@@ -936,8 +1291,8 @@ export function parseSyllabusTextDeterministically(
 
       for (const candidate of candidates) {
         const clean = candidate
-          .replace(/^[-*•–—]\s*/, "")
-          .replace(/^[0-9]+(?:\.[0-9]+)*[).]?\s*/, "")
+          .replace(/^[-*•–—]\s*/u, "")
+          .replace(/^[0-9]+(?:\.[0-9]+)*[).]?\s*/u, "")
           .trim();
         if (clean.length < 2) continue;
 
@@ -984,7 +1339,7 @@ export function parseSyllabusTextDeterministically(
       extractedTopics.push({
         id: `unit-${uNum}-topic-1`,
         title:
-          rUnit.title.replace(/^Unit\s*[0-9]+[:\s-]*/i, "") ||
+          rUnit.title.replace(/^Unit\s*[0-9]+[:\s-]*/iu, "") ||
           `Core Concepts of Unit ${uNum}`,
         subtopics: [],
         estimatedMinutes: 25,
@@ -1089,9 +1444,10 @@ export async function extractDetailedStudySyllabus(
 ): Promise<ParsedStudySyllabus> {
   const parseSystemPrompt = `You are an expert academic curriculum and syllabus parser.
 Your task is to extract exact units/modules, chapters, topics, and subtopics from the uploaded syllabus.
+Preserve all original terminology, languages (English, Hindi, Hinglish), Unicode characters, mathematical symbols, degree symbols, special characters (/, &, -, :, %, ()), and formulas exactly as written.
 
 CRITICAL GROUNDING AND EXTRACTION RULES:
-1. Handle any heading style: "Unit 1", "UNIT-I", "Unit I", "Module 1", "Module-I", "Chapter 1", "Course Unit 1", "1. Title", "Topic:", or topic lists.
+1. Handle any heading style: "Unit 1", "UNIT-I", "Unit I", "Module 1", "Module-I", "Chapter 1", "Course Unit 1", "1. Title", "Topic:", "इकाई", "अध्याय", or topic lists.
 2. Stay strictly grounded in the syllabus text provided. DO NOT invent topics, chapters, or units not mentioned in the text.
 3. If subtopics are not explicitly present in the text, leave the "subtopics" array empty ([]).
 4. If a unit has multiple topics, extract each topic clearly.
@@ -1128,9 +1484,7 @@ Return ONLY a valid JSON object matching this schema:
 
   // Strategy 1: PRIMARY - NVIDIA Nemotron
   try {
-    const nvidia = getNvidiaClient();
-    const res = await nvidia.chat.completions.create({
-      model: NVIDIA_DEFAULT_MODEL,
+    const res = await callNvidiaChatCompletion({
       messages: [
         { role: "system", content: parseSystemPrompt },
         { role: "user", content: parseUserPrompt },
@@ -1149,7 +1503,10 @@ Return ONLY a valid JSON object matching this schema:
       }
     }
   } catch (nvidiaErr) {
-    console.warn("NVIDIA Nemotron syllabus extraction failed, falling back to Groq:", nvidiaErr);
+    console.warn(
+      "[AI] NVIDIA Nemotron syllabus extraction failed, falling back to Groq:",
+      nvidiaErr instanceof Error ? nvidiaErr.message : nvidiaErr
+    );
   }
 
   // Strategy 2: FALLBACK - Groq
@@ -1177,7 +1534,10 @@ Return ONLY a valid JSON object matching this schema:
       return result;
     }
   } catch (groqErr) {
-    console.warn("Groq AI syllabus extraction encountered an error, falling back to deterministic parser:", groqErr);
+    console.warn(
+      "Groq AI syllabus extraction encountered an error, falling back to deterministic parser:",
+      groqErr instanceof Error ? groqErr.message : groqErr
+    );
   }
 
   // Strategy 3: Resilient deterministic text parser fallback
@@ -1215,6 +1575,7 @@ You teach students in natural, conversational Indian Hinglish (a natural mix of 
 RULES FOR HINGLISH:
 - Speak like a friendly college teacher: "Chalo ab is topic ko basic se samajhte hain...", "Yeh exam me aksar 5 marks ka aata hai...", "Dhyan se dekho..."
 - Keep all technical terms, formulas, code, and academic keywords strictly in standard English (e.g., "Time Complexity", "Deadlock", "Primary Key", "Bernoulli Theorem").
+- Preserve all mathematical symbols, degree symbols, and formulas.
 - Do NOT translate technical definitions into Hindi awkwardly.
 - Keep the tone super encouraging, clear, and exam-oriented.
 - You MUST output ONLY valid JSON matching the exact schema with all 8 requested components. No markdown outside JSON.`
@@ -1223,6 +1584,7 @@ You teach students in clear, simple, high-yield exam-oriented English.
 RULES FOR ENGLISH:
 - Keep explanations crystal clear, engaging, and structured.
 - Avoid unnecessarily dense jargon; explain concepts from first principles.
+- Preserve all mathematical symbols, degree symbols, and formulas.
 - Emphasize exam-scoring points, diagrams/flow representations, and frequent mistakes.
 - You MUST output ONLY valid JSON matching the exact schema with all 8 requested components. No markdown outside JSON.`;
 
@@ -1280,9 +1642,7 @@ Return ONLY a valid JSON object matching this schema:
 
   // Strategy 1: PRIMARY - NVIDIA Nemotron
   try {
-    const nvidia = getNvidiaClient();
-    const res = await nvidia.chat.completions.create({
-      model: NVIDIA_DEFAULT_MODEL,
+    const res = await callNvidiaChatCompletion({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -1311,7 +1671,10 @@ Return ONLY a valid JSON object matching this schema:
       };
     }
   } catch (nvidiaErr) {
-    console.warn("NVIDIA Nemotron teach topic failed, falling back to Groq:", nvidiaErr);
+    console.warn(
+      "[AI] NVIDIA Nemotron teach topic failed, falling back to Groq:",
+      nvidiaErr instanceof Error ? nvidiaErr.message : nvidiaErr
+    );
   }
 
   // Strategy 2: FALLBACK - Groq
@@ -1367,8 +1730,8 @@ export async function generateSyllabusCompletion(input: {
   );
 
   const systemPrompt = isHinglish
-    ? "You are PadhaiHub's chief academic mentor. Deliver the final syllabus completion package in natural, encouraging Hinglish with technical terms in English."
-    : "You are PadhaiHub's chief academic mentor. Deliver the final comprehensive exam revision package in clear, high-yield English.";
+    ? "You are PadhaiHub's chief academic mentor. Deliver the final syllabus completion package in natural, encouraging Hinglish with technical terms in English. Preserve all Unicode characters, mathematical symbols, degree symbols, and formulas."
+    : "You are PadhaiHub's chief academic mentor. Deliver the final comprehensive exam revision package in clear, high-yield English. Preserve all Unicode characters, mathematical symbols, degree symbols, and formulas.";
 
   const userPrompt = `The student has completed ALL topics in the syllabus for: "${input.subject}".
 
@@ -1419,9 +1782,7 @@ Return ONLY a valid JSON object matching this schema:
 
   // Strategy 1: PRIMARY - NVIDIA Nemotron
   try {
-    const nvidia = getNvidiaClient();
-    const res = await nvidia.chat.completions.create({
-      model: NVIDIA_DEFAULT_MODEL,
+    const res = await callNvidiaChatCompletion({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -1445,7 +1806,10 @@ Return ONLY a valid JSON object matching this schema:
       };
     }
   } catch (nvidiaErr) {
-    console.warn("NVIDIA Nemotron syllabus completion failed, falling back to Groq:", nvidiaErr);
+    console.warn(
+      "[AI] NVIDIA Nemotron syllabus completion failed, falling back to Groq:",
+      nvidiaErr instanceof Error ? nvidiaErr.message : nvidiaErr
+    );
   }
 
   // Strategy 2: FALLBACK - Groq

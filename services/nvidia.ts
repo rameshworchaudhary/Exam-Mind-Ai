@@ -4,8 +4,24 @@ import OpenAI from "openai";
 export const NVIDIA_DEFAULT_BASE_URL =
   process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1";
 
-export const NVIDIA_DEFAULT_MODEL =
-  process.env.NVIDIA_MODEL || "nvidia/llama-3.1-nemotron-70b-instruct";
+export const NVIDIA_REQUEST_TIMEOUT_MS = Number(
+  process.env.NVIDIA_TIMEOUT_MS ?? 15000
+);
+
+// NVIDIA Nemotron model configuration
+export const PRIMARY_NVIDIA_MODEL =
+  process.env.NVIDIA_MODEL?.trim() || "nvidia/nemotron-3-super-120b-a12b";
+
+// Helper to get active model
+export function getNvidiaModel(): string {
+  const envModel = process.env.NVIDIA_MODEL?.trim();
+  if (!envModel || envModel === "dummy_nvidia_model") {
+    return PRIMARY_NVIDIA_MODEL;
+  }
+  return envModel;
+}
+
+export const NVIDIA_DEFAULT_MODEL = getNvidiaModel();
 
 export function getNvidiaClient(): OpenAI {
   const apiKey = process.env.NVIDIA_API_KEY;
@@ -16,11 +32,105 @@ export function getNvidiaClient(): OpenAI {
   }
 
   return new OpenAI({
-    apiKey,
+    apiKey: apiKey.trim(),
     baseURL: NVIDIA_DEFAULT_BASE_URL,
     timeout: 60000,
-    maxRetries: 2,
+    maxRetries: 0,
   });
+}
+
+/**
+ * Executes a chat completion strictly using the required NVIDIA Nemotron model.
+ * No internal model rotation. If NVIDIA fails, the caller falls back to Groq.
+ */
+export async function callNvidiaChatCompletion(
+  params: Omit<OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming, "model"> & {
+    model?: string;
+  }
+): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  const apiKey = process.env.NVIDIA_API_KEY?.trim();
+  if (!apiKey || apiKey === "dummy_nvidia_key") {
+    throw new Error(
+      "NVIDIA_API_KEY is not configured in server environment variables."
+    );
+  }
+
+  const model = params.model || getNvidiaModel();
+  const url = `${NVIDIA_DEFAULT_BASE_URL.replace(/\/+$/, "")}/chat/completions`;
+  const timeoutMs = Number.isFinite(NVIDIA_REQUEST_TIMEOUT_MS)
+    ? Math.max(1000, NVIDIA_REQUEST_TIMEOUT_MS)
+    : 15000;
+
+  console.log(`[AI] Calling NVIDIA (${model}) at ${url}`);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: params.messages,
+        temperature: params.temperature ?? 0.2,
+        top_p: params.top_p ?? 0.7,
+        max_tokens: params.max_tokens ?? 100,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      const errorSnippet = errorText.slice(0, 300) || "none";
+
+      if (response.status === 429) {
+        console.warn(
+          `[AI][NVIDIA] HTTP 429, falling back to Groq for model=${model} url=${url} body=${errorSnippet}`
+        );
+      } else if (response.status === 503 || response.status >= 500) {
+        console.warn(
+          `[AI][NVIDIA] HTTP ${response.status}, falling back to Groq for model=${model} url=${url} body=${errorSnippet}`
+        );
+      } else {
+        console.warn(
+          `[AI][NVIDIA] REST status=${response.status} model=${model} url=${url} body=${errorSnippet}`
+        );
+      }
+
+      throw new Error(
+        `NVIDIA API returned HTTP ${response.status} for model ${model}: ${errorText.slice(0, 200)}`
+      );
+    }
+
+    const data = (await response.json()) as OpenAI.Chat.Completions.ChatCompletion;
+    return data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (error instanceof Error && error.name === "AbortError") {
+      console.warn(`[AI][NVIDIA] Timeout after 15s, falling back to Groq`);
+      throw new Error(`NVIDIA API timed out after ${timeoutMs}ms for model ${model}`);
+    }
+
+    if (message.includes("429") || message.includes("HTTP 429")) {
+      console.warn(`[AI][NVIDIA] HTTP 429, falling back to Groq`);
+    } else if (message.includes("503") || message.includes("HTTP 503")) {
+      console.warn(`[AI][NVIDIA] HTTP 503, falling back to Groq`);
+    } else {
+      console.warn(`[AI][NVIDIA] Request failed, falling back to Groq: ${message}`);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function cleanJsonContent(content: string): string {
@@ -71,16 +181,12 @@ export async function analyzeSyllabusNvidia(
   syllabusText: string,
   subject: string = "General"
 ): Promise<SyllabusAnalysisResult> {
-  const client = getNvidiaClient();
-  const model = NVIDIA_DEFAULT_MODEL;
-
-  const response = await client.chat.completions.create({
-    model,
+  const response = await callNvidiaChatCompletion({
     messages: [
       {
         role: "system",
         content:
-          "You are an expert AI academic syllabus analyzer. You MUST output ONLY valid JSON without markdown formatting, code fences, or introductory text.",
+          "You are an expert AI academic syllabus analyzer. Preserve all original terminology, languages (English, Hindi, Hinglish), Unicode characters, mathematical symbols, degree symbols, special characters (/, &, -, :, %, ()), and formulas exactly as written. You MUST output ONLY valid JSON without markdown formatting, code fences, or introductory text.",
       },
       {
         role: "user",
@@ -94,11 +200,11 @@ Return ONLY a valid JSON object matching this schema:
 }
 
 Syllabus content:
-${syllabusText.slice(0, 4000)}`,
+${syllabusText.slice(0, 6000)}`,
       },
     ],
     temperature: 0.2,
-    max_tokens: 1800,
+    max_tokens: 2200,
   });
 
   const content = response.choices?.[0]?.message?.content || "";
@@ -160,16 +266,12 @@ export async function analyzePYQNvidia(
   pyqText: string,
   subject: string = "General"
 ): Promise<PYQAnalysisResult> {
-  const client = getNvidiaClient();
-  const model = NVIDIA_DEFAULT_MODEL;
-
-  const response = await client.chat.completions.create({
-    model,
+  const response = await callNvidiaChatCompletion({
     messages: [
       {
         role: "system",
         content:
-          "You are an expert AI exam question paper analyzer and predictor. You MUST output ONLY valid JSON without markdown formatting, code fences, or introductory text.",
+          "You are an expert AI exam question paper analyzer and predictor. Preserve all original terminology, languages (English, Hindi, Hinglish), Unicode characters, mathematical symbols, degree symbols, special characters (/, &, -, :, %, ()), and formulas exactly as written. You MUST output ONLY valid JSON without markdown formatting, code fences, or introductory text.",
       },
       {
         role: "user",
@@ -192,11 +294,11 @@ Return ONLY a valid JSON object matching this schema:
 }
 
 PYQ content:
-${pyqText.slice(0, 4000)}`,
+${pyqText.slice(0, 6000)}`,
       },
     ],
     temperature: 0.2,
-    max_tokens: 2000,
+    max_tokens: 2500,
   });
 
   const content = response.choices?.[0]?.message?.content || "";

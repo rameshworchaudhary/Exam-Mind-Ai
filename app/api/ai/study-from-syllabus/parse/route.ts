@@ -257,7 +257,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Run AI structured extraction
-    const parsedSyllabus = await extractDetailedStudySyllabus(text.slice(0, 5000), subject);
+    const parsedSyllabus = await extractDetailedStudySyllabus(text.slice(0, 10000), subject);
 
     if (!parsedSyllabus || !parsedSyllabus.units || parsedSyllabus.units.length === 0) {
       return NextResponse.json(

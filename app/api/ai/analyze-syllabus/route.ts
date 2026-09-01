@@ -43,12 +43,13 @@ export async function POST(req: NextRequest) {
           const pdfData = await pdfParse(buffer);
           text = pdfData?.text || "";
 
-          const nonAscii = (text.match(/[^\x00-\x7F]/g) || []).length;
-          const ratio = text.length > 0 ? nonAscii / text.length : 1;
+          // Check for unprintable binary control characters (excluding valid Unicode & whitespace)
+          const controlChars = (text.match(/[\x00-\x08\x0E-\x1F]/g) || []).length;
+          const controlRatio = text.length > 0 ? controlChars / text.length : 0;
 
           if (
-            ratio > 0.45 ||
-            (text.trim().length < 25 && (text.startsWith("%PDF") || text.includes("endobj")))
+            controlRatio > 0.35 ||
+            (text.trim().length < 15 && (text.startsWith("%PDF") || text.includes("endobj")))
           ) {
             return NextResponse.json(
               {
