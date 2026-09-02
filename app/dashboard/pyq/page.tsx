@@ -53,33 +53,26 @@ export default function PYQPage() {
     }
     try {
       setLoading(true);
-      setUploadProgress(10);
+      setUploadProgress(15);
 
-      const extractedText = await file.text();
-      setUploadProgress(30);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("subject", subject || "General");
 
-      if (!extractedText || extractedText.trim().length < 10) {
-        toast.error("File appears empty or unreadable");
-        setLoading(false);
-        return;
-      }
+      setUploadProgress(40);
 
-      setUploadProgress(50);
-
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const headers: Record<string, string> = {};
       try {
         const token = await user.getIdToken();
         if (token) headers["Authorization"] = `Bearer ${token}`;
       } catch {}
 
+      setUploadProgress(60);
+
       const response = await fetch("/api/ai/analyze-pyq", {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          text: extractedText.slice(0, 3000),
-          subject: subject || "General",
-          uid: user.uid,
-        }),
+        body: formData,
       });
 
       let data: any = null;

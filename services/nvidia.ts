@@ -135,8 +135,11 @@ export async function callNvidiaChatCompletion(
 
 function cleanJsonContent(content: string): string {
   if (!content) return "";
-  // Strip markdown code fences if present
   let cleaned = content.trim();
+  const jsonBlock = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (jsonBlock) {
+    return jsonBlock[1].trim();
+  }
   if (cleaned.startsWith("```json")) {
     cleaned = cleaned.slice(7);
   } else if (cleaned.startsWith("```")) {
@@ -154,8 +157,24 @@ function safeJsonParse<T = Record<string, unknown>>(content: string): T | null {
     return JSON.parse(cleaned) as T;
   } catch {
     try {
+      const sanitized = cleaned.replace(/"((?:[^"\\]|\\.)*)"/g, (_, p1) => {
+        return '"' + p1.replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t") + '"';
+      });
+      return JSON.parse(sanitized) as T;
+    } catch {}
+
+    try {
       const match = cleaned.match(/\{[\s\S]*\}/);
-      if (match) return JSON.parse(match[0]) as T;
+      if (match) {
+        try {
+          return JSON.parse(match[0]) as T;
+        } catch {
+          const sanitizedMatch = match[0].replace(/"((?:[^"\\]|\\.)*)"/g, (_, p1) => {
+            return '"' + p1.replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t") + '"';
+          });
+          return JSON.parse(sanitizedMatch) as T;
+        }
+      }
     } catch {}
     return null;
   }

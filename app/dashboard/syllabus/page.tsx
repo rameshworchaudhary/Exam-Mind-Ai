@@ -65,33 +65,26 @@ export default function SyllabusAnalyzerPage() {
     }
     try {
       setLoading(true);
-      setProgress(10);
+      setProgress(15);
 
-      const text = await file.text();
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("subject", subject || "General");
+
       setProgress(40);
 
-      if (!text || text.trim().length < 10) {
-        toast.error("File appears empty");
-        setLoading(false);
-        return;
-      }
-
-      setProgress(60);
-
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const headers: Record<string, string> = {};
       try {
         const token = await user.getIdToken();
         if (token) headers["Authorization"] = `Bearer ${token}`;
       } catch {}
 
+      setProgress(60);
+
       const response = await fetch("/api/ai/analyze-syllabus", {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          text: text.slice(0, 5000),
-          subject: subject || "General",
-          uid: user.uid,
-        }),
+        body: formData,
       });
 
       let data: any = null;

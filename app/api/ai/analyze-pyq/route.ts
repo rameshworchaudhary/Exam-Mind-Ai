@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzePYQ } from "@/services/ai";
 import { checkServerDailyUsage, incrementServerDailyUsage, getVerifiedUid } from "@/services/usage";
-import pdfParse from "pdf-parse";
+import { extractTextFromPdf } from "@/lib/pdf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,21 +12,28 @@ export async function POST(req: NextRequest) {
     const contentType = req.headers.get("content-type") || "";
     let text = "";
     let subject = "General";
-    let uid = "";
 
     // 1. JSON REQUEST
     if (contentType.includes("application/json")) {
       const body = await req.json();
       text = body?.text || "";
       subject = body?.subject || "General";
-      uid = body?.uid || "";
+
+      if (text.startsWith("%PDF")) {
+        try {
+          const buffer = Buffer.from(text, "latin1");
+          const extracted = await extractTextFromPdf(buffer);
+          if (extracted && extracted.trim().length > 10) {
+            text = extracted;
+          }
+        } catch {}
+      }
     }
     // 2. FORM DATA REQUEST (PDF or TXT upload)
     else if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
       const file = formData.get("file") as File | null;
       subject = (formData.get("subject") as string) || "General";
-      uid = (formData.get("uid") as string) || "";
 
       if (!file) {
         return NextResponse.json(
@@ -38,34 +45,20 @@ export async function POST(req: NextRequest) {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
 
-      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      const isPdf =
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf") ||
+        buffer.slice(0, 4).toString() === "%PDF";
+
+      if (isPdf) {
         try {
-          const pdfData = await pdfParse(buffer);
-          text = pdfData?.text || "";
-
-          // Check for unprintable binary control characters (excluding valid Unicode & whitespace)
-          const controlChars = (text.match(/[\x00-\x08\x0E-\x1F]/g) || []).length;
-          const controlRatio = text.length > 0 ? controlChars / text.length : 0;
-
-          if (
-            controlRatio > 0.35 ||
-            (text.trim().length < 15 && (text.startsWith("%PDF") || text.includes("endobj")))
-          ) {
-            return NextResponse.json(
-              {
-                success: false,
-                error:
-                  "This PDF appears to be an image-only scan or corrupted. Please upload a searchable/selectable text PDF or .txt file.",
-              },
-              { status: 400 }
-            );
-          }
+          text = await extractTextFromPdf(buffer);
         } catch (pdfError) {
           console.error("PDF parsing error in analyze-pyq:", pdfError);
           return NextResponse.json(
             {
               success: false,
-              error: "Failed to extract text from PDF. Please upload a valid text PDF or .txt file.",
+              error: "Failed to extract text from PYQ PDF. Please ensure the file contains readable text.",
             },
             { status: 400 }
           );
@@ -80,25 +73,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const verifiedUid = await getVerifiedUid(req, uid || undefined);
-    uid = verifiedUid || uid;
+    // Strictly authenticate using Firebase Bearer ID Token
+    const uid = await getVerifiedUid(req);
+    if (!uid) {
+      return NextResponse.json(
+        { success: false, error: "Authentication required. Please sign in to analyze PYQs." },
+        { status: 401 }
+      );
+    }
 
     // 3. CHECK DAILY USAGE LIMIT (5 PDF/PYQ analyses per day)
-    if (uid) {
-      const limitCheck = await checkServerDailyUsage(uid, "pdf");
-      if (!limitCheck.allowed) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Daily limit reached! You have used all ${limitCheck.limit} PDF/PYQ analysis uploads for today. Please try again tomorrow.`,
-            limitReached: true,
-            current: limitCheck.current,
-            limit: limitCheck.limit,
-            remaining: limitCheck.remaining,
-          },
-          { status: 429 }
-        );
-      }
+    const limitCheck = await checkServerDailyUsage(uid, "pdf");
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Daily limit reached! You have used all ${limitCheck.limit} PDF/PYQ analysis uploads for today. Please try again tomorrow.`,
+          limitReached: true,
+          current: limitCheck.current,
+          limit: limitCheck.limit,
+          remaining: limitCheck.remaining,
+        },
+        { status: 429 }
+      );
     }
 
     // 4. VALIDATE EXTRACTED TEXT
@@ -109,8 +106,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. RUN AI ANALYSIS (Powered by NVIDIA Nemotron)
-    const result = await analyzePYQ(text.slice(0, 5000), subject);
+    // 5. RUN AI ANALYSIS (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
+    const result = await analyzePYQ(text.slice(0, 6000), subject);
 
     // Ensure AI result is valid before consuming usage quota
     if (!result || (!result.repeatedQuestions?.length && !result.importantTopics?.length && !result.predictions?.length)) {
@@ -121,10 +118,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 6. ATOMICALLY INCREMENT USAGE ONLY AFTER SUCCESSFUL AI RESPONSE
-    let usageInfo = null;
-    if (uid) {
-      usageInfo = await incrementServerDailyUsage(uid, "pdf");
-    }
+    const usageInfo = await incrementServerDailyUsage(uid, "pdf");
 
     return NextResponse.json({
       success: true,
@@ -137,8 +131,15 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("PYQ analysis API error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Failed to analyze PYQ questions";
+    const rawMsg = error instanceof Error ? error.message : "Failed to analyze PYQ questions";
+    const isRateLimit =
+      rawMsg.toLowerCase().includes("rate limit") ||
+      rawMsg.toLowerCase().includes("tokens per day") ||
+      rawMsg.toLowerCase().includes("429");
+    const errorMessage = isRateLimit
+      ? "AI service is temporarily busy with high request volume. Please try again in a moment."
+      : rawMsg;
+
     return NextResponse.json(
       {
         success: false,
@@ -148,7 +149,7 @@ export async function POST(req: NextRequest) {
         trends: [],
         error: errorMessage,
       },
-      { status: 500 }
+      { status: isRateLimit ? 429 : 500 }
     );
   }
 }

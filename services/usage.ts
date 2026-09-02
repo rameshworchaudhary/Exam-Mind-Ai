@@ -62,7 +62,7 @@ function decodeJwtUid(token: string): string | null {
  */
 export async function getVerifiedUid(
   req: NextRequest,
-  fallbackUid?: string
+  _fallbackUid?: string
 ): Promise<string | null> {
   const authHeader = req.headers.get("authorization");
   if (authHeader && authHeader.startsWith("Bearer ")) {
@@ -86,10 +86,6 @@ export async function getVerifiedUid(
         return decodedUid;
       }
     }
-  }
-
-  if (fallbackUid && fallbackUid !== "anonymous") {
-    return fallbackUid;
   }
 
   return null;

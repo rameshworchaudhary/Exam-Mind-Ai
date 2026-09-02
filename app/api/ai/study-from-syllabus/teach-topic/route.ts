@@ -17,7 +17,13 @@ export async function POST(req: NextRequest) {
       syllabusSummary,
     } = body;
 
-    const uid = await getVerifiedUid(req, body.uid);
+    const uid = await getVerifiedUid(req);
+    if (!uid) {
+      return NextResponse.json(
+        { success: false, error: "Authentication required. Please sign in to generate topic lessons." },
+        { status: 401 }
+      );
+    }
 
     if (!topicTitle || !unitTitle || !subject) {
       return NextResponse.json(
@@ -27,24 +33,22 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Check daily AI chat/lesson usage limit
-    if (uid) {
-      const limitCheck = await checkServerDailyUsage(uid, "chat");
-      if (!limitCheck.allowed) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Daily limit reached! You have reached your limit of ${limitCheck.limit} AI lessons for today. Please try again tomorrow.`,
-            limitReached: true,
-            current: limitCheck.current,
-            limit: limitCheck.limit,
-            remaining: limitCheck.remaining,
-          },
-          { status: 429 }
-        );
-      }
+    const limitCheck = await checkServerDailyUsage(uid, "chat");
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Daily limit reached! You have reached your limit of ${limitCheck.limit} AI lessons for today. Please try again tomorrow.`,
+          limitReached: true,
+          current: limitCheck.current,
+          limit: limitCheck.limit,
+          remaining: limitCheck.remaining,
+        },
+        { status: 429 }
+      );
     }
 
-    // 2. Run Topic Teacher AI
+    // 2. Run Topic Teacher AI (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
     const lesson = await teachSyllabusTopic({
       subject,
       unitTitle,
@@ -62,10 +66,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Atomically increment usage only after successful AI response
-    let usageInfo = null;
-    if (uid) {
-      usageInfo = await incrementServerDailyUsage(uid, "chat");
-    }
+    const usageInfo = await incrementServerDailyUsage(uid, "chat");
 
     return NextResponse.json({
       success: true,
@@ -80,11 +81,18 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Teach topic API error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Failed to teach syllabus topic";
+    const rawMsg = error instanceof Error ? error.message : "Failed to teach syllabus topic";
+    const isRateLimit =
+      rawMsg.toLowerCase().includes("rate limit") ||
+      rawMsg.toLowerCase().includes("tokens per day") ||
+      rawMsg.toLowerCase().includes("429");
+    const errorMessage = isRateLimit
+      ? "AI service is temporarily busy with high request volume. Please try again in a moment."
+      : rawMsg;
+
     return NextResponse.json(
       { success: false, error: errorMessage },
-      { status: 500 }
+      { status: isRateLimit ? 429 : 500 }
     );
   }
 }

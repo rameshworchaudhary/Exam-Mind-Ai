@@ -9,7 +9,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { subject, units, language = "english" } = body;
-    const uid = await getVerifiedUid(req, body.uid);
+    const uid = await getVerifiedUid(req);
+
+    if (!uid) {
+      return NextResponse.json(
+        { success: false, error: "Authentication required. Please sign in to generate syllabus completion." },
+        { status: 401 }
+      );
+    }
 
     if (!subject || !Array.isArray(units) || units.length === 0) {
       return NextResponse.json(
@@ -19,24 +26,22 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Check daily AI chat/lesson usage limit
-    if (uid) {
-      const limitCheck = await checkServerDailyUsage(uid, "chat");
-      if (!limitCheck.allowed) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Daily limit reached! You have reached your limit of ${limitCheck.limit} AI requests for today. Please try again tomorrow.`,
-            limitReached: true,
-            current: limitCheck.current,
-            limit: limitCheck.limit,
-            remaining: limitCheck.remaining,
-          },
-          { status: 429 }
-        );
-      }
+    const limitCheck = await checkServerDailyUsage(uid, "chat");
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Daily limit reached! You have reached your limit of ${limitCheck.limit} AI requests for today. Please try again tomorrow.`,
+          limitReached: true,
+          current: limitCheck.current,
+          limit: limitCheck.limit,
+          remaining: limitCheck.remaining,
+        },
+        { status: 429 }
+      );
     }
 
-    // 2. Run Completion Generator AI
+    // 2. Run Completion Generator AI (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
     const completion = await generateSyllabusCompletion({
       subject,
       units,
@@ -51,10 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Atomically increment usage only after successful AI response
-    let usageInfo = null;
-    if (uid) {
-      usageInfo = await incrementServerDailyUsage(uid, "chat");
-    }
+    const usageInfo = await incrementServerDailyUsage(uid, "chat");
 
     return NextResponse.json({
       success: true,
@@ -69,11 +71,18 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Syllabus completion API error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Failed to generate syllabus completion";
+    const rawMsg = error instanceof Error ? error.message : "Failed to generate syllabus completion";
+    const isRateLimit =
+      rawMsg.toLowerCase().includes("rate limit") ||
+      rawMsg.toLowerCase().includes("tokens per day") ||
+      rawMsg.toLowerCase().includes("429");
+    const errorMessage = isRateLimit
+      ? "AI service is temporarily busy with high request volume. Please try again in a moment."
+      : rawMsg;
+
     return NextResponse.json(
       { success: false, error: errorMessage },
-      { status: 500 }
+      { status: isRateLimit ? 429 : 500 }
     );
   }
 }
