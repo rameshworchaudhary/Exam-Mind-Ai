@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     template: "%s | PadhaiHub",
   },
   description:
-    "Comprehensive study platform for students: syllabus analysis, PYQ predictions, notes, handwritten assignments, viva prep, and study plans.",
+    "Comprehensive AI-powered study platform for students: syllabus analysis, PYQ predictions, AI notes, handwritten assignments, viva prep, and personalized study planning.",
   keywords: ["study", "exam preparation", "notes", "PYQ analysis", "PadhaiHub"],
   authors: [{ name: "PadhaiHub" }],
   icons: {

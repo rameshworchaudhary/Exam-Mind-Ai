@@ -133,51 +133,316 @@ export async function callNvidiaChatCompletion(
   }
 }
 
-function cleanJsonContent(content: string): string {
+export function cleanJsonContent(content: string): string {
   if (!content) return "";
   let cleaned = content.trim();
-  const jsonBlock = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  // Strip code fences with any tag (json, text, markdown, etc.)
+  const jsonBlock = cleaned.match(/```[a-zA-Z0-9_-]*\s*([\s\S]*?)\s*```/);
   if (jsonBlock) {
     return jsonBlock[1].trim();
   }
-  if (cleaned.startsWith("```json")) {
-    cleaned = cleaned.slice(7);
-  } else if (cleaned.startsWith("```")) {
-    cleaned = cleaned.slice(3);
-  }
-  if (cleaned.endsWith("```")) {
-    cleaned = cleaned.slice(0, -3);
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```[a-zA-Z0-9_-]*\s*/, "");
+    if (cleaned.endsWith("```")) {
+      cleaned = cleaned.slice(0, -3);
+    }
   }
   return cleaned.trim();
 }
 
-function safeJsonParse<T = Record<string, unknown>>(content: string): T | null {
-  const cleaned = cleanJsonContent(content);
-  try {
-    return JSON.parse(cleaned) as T;
-  } catch {
-    try {
-      const sanitized = cleaned.replace(/"((?:[^"\\]|\\.)*)"/g, (_, p1) => {
-        return '"' + p1.replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t") + '"';
-      });
-      return JSON.parse(sanitized) as T;
-    } catch {}
+function sanitizeJsonString(raw: string): string {
+  // Replace raw unescaped newlines/tabs inside quotes
+  let result = raw.replace(/"((?:[^"\\]|\\.)*)"/g, (_, p1) => {
+    return '"' + p1.replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t") + '"';
+  });
+  // Strip trailing commas before closing braces/brackets
+  result = result.replace(/,\s*([\]}])/g, "$1");
+  return result;
+}
 
-    try {
-      const match = cleaned.match(/\{[\s\S]*\}/);
-      if (match) {
-        try {
-          return JSON.parse(match[0]) as T;
-        } catch {
-          const sanitizedMatch = match[0].replace(/"((?:[^"\\]|\\.)*)"/g, (_, p1) => {
-            return '"' + p1.replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t") + '"';
-          });
-          return JSON.parse(sanitizedMatch) as T;
-        }
-      }
-    } catch {}
+function autoBalanceJson(text: string): string | null {
+  const openBraces = (text.match(/\{/g) || []).length;
+  const closeBraces = (text.match(/\}/g) || []).length;
+  const openBrackets = (text.match(/\[/g) || []).length;
+  const closeBrackets = (text.match(/\]/g) || []).length;
+
+  if (openBraces === closeBraces && openBrackets === closeBrackets) {
     return null;
   }
+
+  let balanced = text;
+  // If in the middle of an unclosed string, close it
+  const quoteCount = (balanced.match(/(?<!\\)"/g) || []).length;
+  if (quoteCount % 2 !== 0) {
+    balanced += '"';
+  }
+
+  // Close brackets first then braces
+  for (let i = 0; i < openBrackets - closeBrackets; i++) {
+    balanced += "]";
+  }
+  for (let i = 0; i < openBraces - closeBraces; i++) {
+    balanced += "}";
+  }
+  return balanced;
+}
+
+export function safeJsonParse<T = Record<string, unknown>>(content: string): T | null {
+  if (!content || !content.trim()) return null;
+  const cleaned = cleanJsonContent(content);
+
+  // 1. Direct parse
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {}
+
+  // 2. Sanitized parse (handle newlines & trailing commas)
+  try {
+    const sanitized = sanitizeJsonString(cleaned);
+    return JSON.parse(sanitized) as T;
+  } catch {}
+
+  // 3. Extract outermost object {...}
+  const objMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try {
+      return JSON.parse(objMatch[0]) as T;
+    } catch {
+      try {
+        return JSON.parse(sanitizeJsonString(objMatch[0])) as T;
+      } catch {}
+    }
+  }
+
+  // 4. Extract outermost array [...]
+  const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+  if (arrMatch) {
+    try {
+      return JSON.parse(arrMatch[0]) as T;
+    } catch {
+      try {
+        return JSON.parse(sanitizeJsonString(arrMatch[0])) as T;
+      } catch {}
+    }
+  }
+
+  // 5. Try auto-balancing truncated JSON
+  try {
+    const balanced = autoBalanceJson(cleaned);
+    if (balanced) {
+      try {
+        return JSON.parse(sanitizeJsonString(balanced)) as T;
+      } catch {}
+    }
+  } catch {}
+
+  return null;
+}
+
+// Helper to normalize any parsed AI object into strictly typed SyllabusAnalysisResult
+export function normalizeSyllabusResult(
+  raw: any,
+  defaultSubject: string = "General"
+): SyllabusAnalysisResult {
+  const data = raw?.data || raw?.syllabus || raw?.result || raw?.response || raw || {};
+  const rawUnits = Array.isArray(data.units)
+    ? data.units
+    : Array.isArray(data.modules)
+    ? data.modules
+    : Array.isArray(data.chapters)
+    ? data.chapters
+    : [];
+
+  const normalizedUnits: SyllabusUnit[] = rawUnits.map((u: any, idx: number) => {
+    const unitName =
+      typeof u === "string"
+        ? u.trim()
+        : String(u?.name || u?.title || u?.unitName || u?.moduleName || `Unit ${idx + 1}`).trim();
+
+    let rawTopics = Array.isArray(u?.topics)
+      ? u.topics
+      : Array.isArray(u?.subtopics)
+      ? u.subtopics
+      : Array.isArray(u?.chapters)
+      ? u.chapters
+      : [];
+
+    const topics: string[] = rawTopics
+      .map((t: any) => {
+        if (typeof t === "string") return t.trim();
+        if (t && typeof t === "object") {
+          return String(t.title || t.name || t.topic || "").trim();
+        }
+        return "";
+      })
+      .filter((t: string) => t.length > 0);
+
+    let weight = 0;
+    if (typeof u?.weightage === "number" && !isNaN(u.weightage)) {
+      weight = u.weightage;
+    } else if (typeof u?.weight === "number" && !isNaN(u.weight)) {
+      weight = u.weight;
+    } else if (typeof u?.marks === "number" && !isNaN(u.marks)) {
+      weight = u.marks;
+    } else if (typeof u?.percentage === "number" && !isNaN(u.percentage)) {
+      weight = u.percentage;
+    } else if (typeof u?.weightage === "string") {
+      weight = parseFloat(u.weightage.replace(/[^0-9.]/g, "")) || 0;
+    }
+
+    return {
+      name: unitName || `Unit ${idx + 1}`,
+      topics: topics.length > 0 ? topics : [`Core Concepts of ${unitName}`],
+      weightage: weight,
+    };
+  });
+
+  // Ensure weightages distribute nicely if model returned zeroes
+  const totalWeight = normalizedUnits.reduce((sum, u) => sum + u.weightage, 0);
+  if (normalizedUnits.length > 0 && totalWeight === 0) {
+    const equalWeight = Math.round(100 / normalizedUnits.length);
+    normalizedUnits.forEach((u, i) => {
+      u.weightage = i === normalizedUnits.length - 1 ? 100 - equalWeight * (normalizedUnits.length - 1) : equalWeight;
+    });
+  }
+
+  const rawImportant = Array.isArray(data.importantTopics)
+    ? data.importantTopics
+    : Array.isArray(data.highWeightageTopics)
+    ? data.highWeightageTopics
+    : Array.isArray(data.keyTopics)
+    ? data.keyTopics
+    : [];
+
+  const importantTopics: string[] = rawImportant
+    .map((t: any) => (typeof t === "string" ? t.trim() : String(t?.topic || t?.name || t?.title || "").trim()))
+    .filter((t: string) => t.length > 0);
+
+  if (importantTopics.length === 0 && normalizedUnits.length > 0) {
+    // Pick top topics from units
+    normalizedUnits.slice(0, 3).forEach((u) => {
+      if (u.topics[0]) importantTopics.push(u.topics[0]);
+    });
+  }
+
+  const calculatedTotalTopics = normalizedUnits.reduce((acc, u) => acc + u.topics.length, 0);
+  const totalTopics =
+    typeof data.totalTopics === "number" && data.totalTopics > 0
+      ? data.totalTopics
+      : calculatedTotalTopics;
+
+  const summary =
+    typeof data.summary === "string" && data.summary.trim().length > 0
+      ? data.summary.trim()
+      : `Comprehensive syllabus analysis for ${defaultSubject} comprising ${normalizedUnits.length} module(s) and ${totalTopics} key topic(s).`;
+
+  return {
+    units: normalizedUnits,
+    summary,
+    importantTopics,
+    totalTopics,
+  };
+}
+
+// Helper to normalize any parsed AI object into strictly typed PYQAnalysisResult
+export function normalizePYQResult(raw: any, defaultSubject: string = "General"): PYQAnalysisResult {
+  const data = raw?.data || raw?.pyq || raw?.result || raw?.response || raw || {};
+
+  const rawRepeated = Array.isArray(data.repeatedQuestions)
+    ? data.repeatedQuestions
+    : Array.isArray(data.repeated_questions)
+    ? data.repeated_questions
+    : Array.isArray(data.questions)
+    ? data.questions
+    : [];
+
+  const repeatedQuestions: PYQRepeatedQuestion[] = rawRepeated
+    .map((q: any) => {
+      const qText = typeof q === "string" ? q.trim() : String(q?.question || q?.q || q?.title || q?.text || "").trim();
+      let freq = 2;
+      if (typeof q === "object" && q !== null) {
+        if (typeof q.frequency === "number" && !isNaN(q.frequency)) freq = q.frequency;
+        else if (q.frequency) freq = parseInt(String(q.frequency).replace(/[^0-9]/g, "")) || 2;
+        else if (typeof q.count === "number") freq = q.count;
+      }
+      let prob = 75;
+      if (typeof q === "object" && q !== null) {
+        if (typeof q.probability === "number" && !isNaN(q.probability)) prob = q.probability;
+        else if (q.probability) prob = parseInt(String(q.probability).replace(/[^0-9]/g, "")) || 75;
+      }
+      prob = Math.max(20, Math.min(98, prob));
+      return { question: qText, frequency: freq, probability: prob };
+    })
+    .filter((q: PYQRepeatedQuestion) => q.question.length > 0);
+
+  const rawImportant = Array.isArray(data.importantTopics)
+    ? data.importantTopics
+    : Array.isArray(data.important_topics)
+    ? data.important_topics
+    : Array.isArray(data.topics)
+    ? data.topics
+    : [];
+
+  const importantTopics: PYQImportantTopic[] = rawImportant
+    .map((t: any, idx: number) => {
+      if (typeof t === "string") {
+        return {
+          topic: t.trim(),
+          weightage: Math.max(10, Math.round(100 / Math.max(1, rawImportant.length))),
+        };
+      }
+      const topicName = String(t?.topic || t?.name || t?.title || `Topic ${idx + 1}`).trim();
+      let weight = 20;
+      if (typeof t?.weightage === "number" && !isNaN(t.weightage)) weight = t.weightage;
+      else if (typeof t?.weight === "number" && !isNaN(t.weight)) weight = t.weight;
+      else if (t?.weightage) weight = parseInt(String(t.weightage).replace(/[^0-9]/g, "")) || 20;
+      return { topic: topicName, weightage: weight };
+    })
+    .filter((t: PYQImportantTopic) => t.topic.length > 0);
+
+  const rawPredictions = Array.isArray(data.predictions)
+    ? data.predictions
+    : Array.isArray(data.predictedQuestions)
+    ? data.predictedQuestions
+    : Array.isArray(data.predicted_questions)
+    ? data.predicted_questions
+    : [];
+
+  const predictions: PYQPrediction[] = rawPredictions
+    .map((p: any) => {
+      const qText = typeof p === "string" ? p.trim() : String(p?.question || p?.prediction || p?.q || p?.text || "").trim();
+      let prob = 85;
+      if (typeof p === "object" && p !== null) {
+        if (typeof p.probability === "number" && !isNaN(p.probability)) prob = p.probability;
+        else if (p.probability) prob = parseInt(String(p.probability).replace(/[^0-9]/g, "")) || 85;
+      }
+      prob = Math.max(30, Math.min(99, prob));
+      const reasoning =
+        typeof p === "object" && p?.reasoning
+          ? String(p.reasoning).trim()
+          : `High historical recurrence in ${defaultSubject} examination patterns.`;
+      return { question: qText, probability: prob, reasoning };
+    })
+    .filter((p: PYQPrediction) => p.question.length > 0);
+
+  const rawTrends = Array.isArray(data.trends)
+    ? data.trends
+    : Array.isArray(data.patterns)
+    ? data.patterns
+    : Array.isArray(data.keyTrends)
+    ? data.keyTrends
+    : [];
+
+  const trends: string[] = rawTrends
+    .map((t: any) => (typeof t === "string" ? t.trim() : String(t?.trend || t?.description || t?.text || "").trim()))
+    .filter((t: string) => t.length > 0);
+
+  return {
+    repeatedQuestions,
+    importantTopics,
+    predictions,
+    trends,
+  };
 }
 
 // ======================================================
@@ -227,12 +492,7 @@ ${syllabusText.slice(0, 6000)}`,
   });
 
   const content = response.choices?.[0]?.message?.content || "";
-  const parsed = safeJsonParse<{
-    units?: SyllabusUnit[];
-    summary?: string;
-    importantTopics?: string[];
-    totalTopics?: number;
-  }>(content);
+  const parsed = safeJsonParse(content);
 
   if (!parsed) {
     throw new Error(
@@ -241,17 +501,12 @@ ${syllabusText.slice(0, 6000)}`,
     );
   }
 
-  return {
-    units: Array.isArray(parsed.units) ? parsed.units : [],
-    summary: parsed.summary || "No summary available",
-    importantTopics: Array.isArray(parsed.importantTopics)
-      ? parsed.importantTopics
-      : [],
-    totalTopics:
-      typeof parsed.totalTopics === "number"
-        ? parsed.totalTopics
-        : parsed.units?.length || 0,
-  };
+  const normalized = normalizeSyllabusResult(parsed, subject);
+  if (!normalized.units || normalized.units.length === 0) {
+    throw new Error("NVIDIA Nemotron returned empty units");
+  }
+
+  return normalized;
 }
 
 // ======================================================
@@ -321,12 +576,7 @@ ${pyqText.slice(0, 6000)}`,
   });
 
   const content = response.choices?.[0]?.message?.content || "";
-  const parsed = safeJsonParse<{
-    repeatedQuestions?: PYQRepeatedQuestion[];
-    importantTopics?: PYQImportantTopic[];
-    predictions?: PYQPrediction[];
-    trends?: string[];
-  }>(content);
+  const parsed = safeJsonParse(content);
 
   if (!parsed) {
     throw new Error(
@@ -335,14 +585,14 @@ ${pyqText.slice(0, 6000)}`,
     );
   }
 
-  return {
-    repeatedQuestions: Array.isArray(parsed.repeatedQuestions)
-      ? parsed.repeatedQuestions
-      : [],
-    importantTopics: Array.isArray(parsed.importantTopics)
-      ? parsed.importantTopics
-      : [],
-    predictions: Array.isArray(parsed.predictions) ? parsed.predictions : [],
-    trends: Array.isArray(parsed.trends) ? parsed.trends : [],
-  };
+  const normalized = normalizePYQResult(parsed, subject);
+  if (
+    (!normalized.repeatedQuestions || normalized.repeatedQuestions.length === 0) &&
+    (!normalized.importantTopics || normalized.importantTopics.length === 0) &&
+    (!normalized.predictions || normalized.predictions.length === 0)
+  ) {
+    throw new Error("NVIDIA Nemotron returned empty PYQ insights");
+  }
+
+  return normalized;
 }

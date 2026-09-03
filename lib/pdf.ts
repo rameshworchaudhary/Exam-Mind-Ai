@@ -62,9 +62,18 @@ export function parseToUnicodeCMap(cmapStr: string): Map<number, string> {
       const srcCode = parseInt(lineMatch[1], 16);
       const destHex = lineMatch[2];
       let destStr = "";
-      for (let i = 0; i < destHex.length; i += 4) {
-        const code = parseInt(destHex.slice(i, i + 4), 16);
-        destStr += String.fromCharCode(code);
+      if (destHex.length <= 2) {
+        const code = parseInt(destHex, 16);
+        if (!isNaN(code)) {
+          destStr = String.fromCodePoint(code);
+        }
+      } else {
+        for (let i = 0; i < destHex.length; i += 4) {
+          const code = parseInt(destHex.slice(i, i + 4), 16);
+          if (!isNaN(code)) {
+            destStr += String.fromCodePoint(code);
+          }
+        }
       }
       if (destStr) {
         map.set(srcCode, destStr);
@@ -87,7 +96,7 @@ export function parseToUnicodeCMap(cmapStr: string): Map<number, string> {
         const end = parseInt(directMatch[2], 16);
         let destStart = parseInt(directMatch[3], 16);
         for (let code = start; code <= end; code++) {
-          map.set(code, String.fromCharCode(destStart++));
+          map.set(code, String.fromCodePoint(destStart++));
         }
         continue;
       }
@@ -100,8 +109,18 @@ export function parseToUnicodeCMap(cmapStr: string): Map<number, string> {
         for (const item of hexList) {
           const clean = item.replace(/[<>]/g, "");
           let destStr = "";
-          for (let i = 0; i < clean.length; i += 4) {
-            destStr += String.fromCharCode(parseInt(clean.slice(i, i + 4), 16));
+          if (clean.length <= 2) {
+            const code = parseInt(clean, 16);
+            if (!isNaN(code)) {
+              destStr = String.fromCodePoint(code);
+            }
+          } else {
+            for (let i = 0; i < clean.length; i += 4) {
+              const code = parseInt(clean.slice(i, i + 4), 16);
+              if (!isNaN(code)) {
+                destStr += String.fromCodePoint(code);
+              }
+            }
           }
           if (destStr) {
             map.set(curr, destStr);
@@ -276,9 +295,15 @@ export function decodePdfHexString(hex: string, activeFont?: FontMapping): strin
 
     const buf = Buffer.from(cleanHex, "hex");
     if (cleanHex.toLowerCase().startsWith("feff")) {
-      return buf.swap16().toString("utf16le").slice(1);
+      if (buf.length % 2 === 0) {
+        return Buffer.from(buf).swap16().toString("utf16le").slice(1);
+      }
     }
-    return buf.toString("utf-8");
+    const utf8Str = buf.toString("utf-8");
+    if (!utf8Str.includes("\uFFFD")) {
+      return utf8Str;
+    }
+    return buf.toString("latin1");
   } catch {
     return "";
   }
@@ -366,16 +391,51 @@ export function extractTextFromPdfStreams(buffer: Buffer): string {
 }
 
 /**
- * Calculates a text readability score
+ * Calculates a text readability score supporting English, Hindi (Devanagari),
+ * Hinglish, and scientific/mathematical notation while penalizing corruption.
  */
 export function calculateTextReadabilityScore(text: string): number {
   if (!text || text.trim().length === 0) return 0;
-  const printableChars = text.match(/[A-Za-z0-9\s.,:;!?()[\]{}"'\-_/\\+=%#@]/g) || [];
-  return printableChars.length / text.length;
+  // Match any Unicode letters (English, Devanagari, etc.), combining marks/matras, numbers, punctuation, symbols, and whitespace
+  const readableChars = text.match(/[\p{L}\p{M}\p{N}\p{P}\p{S}\p{Z}\s]/gu) || [];
+  // Penalize replacement character \uFFFD and binary control characters
+  const badChars = text.match(/[\uFFFD\x00-\x08\x0B\x0C\x0E-\x1F]/g) || [];
+  const validCount = Math.max(0, readableChars.length - badChars.length * 2);
+  return validCount / text.length;
+}
+
+/**
+ * Helper to identify Devanagari matras, vowel signs, and general combining marks
+ * so spatial reconstruction does NOT break words by prepending spaces before them.
+ */
+function isCombiningOrVowelSign(str: string): boolean {
+  if (!str) return false;
+  const code = str.codePointAt(0);
+  if (!code) return false;
+  // Devanagari combining marks / signs / matras / halant / virama:
+  // 0x0901-0x0903 (chandrabindu, anusvara, visarga)
+  // 0x093A-0x094F (nukta, vowel signs AA, I, II, U, UU, R, RR, E, AI, O, AU, virama/halant)
+  // 0x0951-0x0957 (udatta, anudatta, grave, acute)
+  // 0x0962-0x0963 (vocalic L, LL vowel signs)
+  if (
+    (code >= 0x0901 && code <= 0x0903) ||
+    (code >= 0x093a && code <= 0x094f) ||
+    (code >= 0x0951 && code <= 0x0957) ||
+    (code >= 0x0962 && code <= 0x0963)
+  ) {
+    return true;
+  }
+  // General Unicode combining mark (\p{M})
+  try {
+    return /^\p{M}/u.test(str);
+  } catch {
+    return false;
+  }
 }
 
 /**
  * Custom pagerender for pdf-parse that ensures proper word spacing and line structure
+ * while preserving multi-byte scripts and vowel marks.
  */
 export function customPdfPageRender(pageData: any): Promise<string> {
   return pageData.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false })
@@ -412,7 +472,15 @@ export function customPdfPageRender(pageData: any): Promise<string> {
 
         for (const item of line.items) {
           const itemX = item.transform[4];
-          if (lastRight > 0 && itemX - lastRight > 2 && !lineStr.endsWith(" ") && !item.str.startsWith(" ")) {
+          const shouldPrependSpace =
+            lastRight > 0 &&
+            itemX - lastRight > 2 &&
+            !lineStr.endsWith(" ") &&
+            !item.str.startsWith(" ") &&
+            !lineStr.endsWith("\u094D") && // Do not break Devanagari halant conjunct
+            !isCombiningOrVowelSign(item.str);
+
+          if (shouldPrependSpace) {
             lineStr += " ";
           }
           lineStr += item.str;
@@ -449,8 +517,10 @@ export function cleanExtractedSyllabusText(text: string): string {
     .replace(/\r/g, "\n")
     .replace(/\u0000/g, "")
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, " ")
+    .replace(/\uFFFD/g, "")
     .replace(/[ \t]+/g, " ")
     .replace(/\n\s*\n\s*\n+/g, "\n\n")
+    .normalize("NFC")
     .trim();
 }
 
@@ -479,25 +549,8 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
     console.warn("Custom pdfParse failed, falling back:", parseErr);
   }
 
-  // Strategy 2: Direct PostScript stream extraction with full CMap and Font Differences decoding
-  if (bestScore < 0.75 || bestText.trim().length < 15) {
-    try {
-      const streamExtracted = extractTextFromPdfStreams(buffer);
-      if (streamExtracted && streamExtracted.trim().length > 10) {
-        const cleaned = cleanExtractedSyllabusText(streamExtracted);
-        const score = calculateTextReadabilityScore(cleaned);
-        if (score > bestScore) {
-          bestText = cleaned;
-          bestScore = score;
-        }
-      }
-    } catch (streamErr) {
-      console.warn("Stream CMap extractor error:", streamErr);
-    }
-  }
-
-  // Strategy 3: Standard pdf-parse default render fallback
-  if (bestScore < 0.60 || bestText.trim().length < 15) {
+  // Strategy 2: Standard pdf-parse default render fallback (high-fidelity PDF.js text extraction)
+  if (bestScore < 0.70 || bestText.trim().length < 15) {
     try {
       const defaultPdfData = await pdfParse(buffer);
       if (defaultPdfData?.text && defaultPdfData.text.trim().length > 10) {
@@ -510,6 +563,23 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
       }
     } catch {
       // ignore
+    }
+  }
+
+  // Strategy 3: Direct PostScript stream extraction with full CMap and Font Differences decoding
+  if (bestScore < 0.60 || bestText.trim().length < 15) {
+    try {
+      const streamExtracted = extractTextFromPdfStreams(buffer);
+      if (streamExtracted && streamExtracted.trim().length > 10) {
+        const cleaned = cleanExtractedSyllabusText(streamExtracted);
+        const score = calculateTextReadabilityScore(cleaned);
+        if (score > bestScore) {
+          bestText = cleaned;
+          bestScore = score;
+        }
+      }
+    } catch (streamErr) {
+      console.warn("Stream CMap extractor error:", streamErr);
     }
   }
 

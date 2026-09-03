@@ -99,7 +99,7 @@ export default function SyllabusAnalyzerPage() {
 
       setProgress(80);
 
-      // ✅ Direct data use karo — no result wrapper
+      // Direct data use
       const analysisData: SyllabusAnalysis = {
         units: Array.isArray(data?.units) ? data.units : [],
         summary: data?.summary || "No summary available",
@@ -108,18 +108,22 @@ export default function SyllabusAnalyzerPage() {
       };
 
       setAnalysis(analysisData);
-
-      await saveUpload(user.uid, {
-        type: "syllabus",
-        fileName: file.name,
-        fileUrl: "",
-        subject: subject || "General",
-        analysis: JSON.parse(JSON.stringify(analysisData)),
-      });
-
-      await incrementUserProfileField(user.uid, "aiUsageCount", 1);
-      await refreshProfile();
       setProgress(100);
+
+      // Safe non-blocking persistence
+      try {
+        await saveUpload(user.uid, {
+          type: "syllabus",
+          fileName: file.name,
+          fileUrl: "",
+          subject: subject || "General",
+          analysis: JSON.parse(JSON.stringify(analysisData)),
+        });
+        await refreshProfile();
+      } catch (saveErr) {
+        console.warn("Failed to save syllabus upload record:", saveErr);
+      }
+
       toast.success("Syllabus analyzed successfully! 🎉");
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Analysis failed";
@@ -129,9 +133,9 @@ export default function SyllabusAnalyzerPage() {
     }
   };
 
-  const chartData = analysis?.units?.map((unit) => ({
-    name: unit?.name?.length > 20 ? unit.name.substring(0, 20) + "..." : unit?.name || "Unit",
-    value: unit?.weightage || 0,
+  const chartData = analysis?.units?.map((unit, idx) => ({
+    name: unit?.name ? (unit.name.length > 20 ? unit.name.substring(0, 20) + "..." : unit.name) : `Unit ${idx + 1}`,
+    value: typeof unit?.weightage === "number" && !isNaN(unit.weightage) && unit.weightage > 0 ? unit.weightage : Math.round(100 / Math.max(1, analysis.units.length)),
   })) || [];
 
   return (
@@ -259,14 +263,17 @@ export default function SyllabusAnalyzerPage() {
                     <span className="text-amber-400">★</span> High-Yield Focus Topics
                   </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {analysis.importantTopics.map((topic) => (
-                      <span
-                        key={topic}
-                        className="text-[11px] font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2 py-0.5 rounded-md"
-                      >
-                        {topic}
-                      </span>
-                    ))}
+                    {analysis.importantTopics.map((topic, tIdx) => {
+                      const label = typeof topic === "string" ? topic : (topic as any)?.topic || (topic as any)?.name || String(topic);
+                      return (
+                        <span
+                          key={tIdx}
+                          className="text-[11px] font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2 py-0.5 rounded-md"
+                        >
+                          {label}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -343,11 +350,14 @@ export default function SyllabusAnalyzerPage() {
                             <div className="px-3 pb-3 pt-1 border-t border-border/50 bg-muted/30">
                               <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1.5">Subtopics Covered:</p>
                               <div className="flex flex-wrap gap-1">
-                                {unit.topics.map((topic) => (
-                                  <span key={topic} className="text-[11px] bg-card border border-border/60 px-2 py-0.5 rounded text-foreground">
-                                    {topic}
-                                  </span>
-                                ))}
+                                {unit.topics.map((topic, tIdx) => {
+                                  const topicLabel = typeof topic === "string" ? topic : (topic as any)?.name || (topic as any)?.title || String(topic);
+                                  return (
+                                    <span key={tIdx} className="text-[11px] bg-card border border-border/60 px-2 py-0.5 rounded text-foreground">
+                                      {topicLabel}
+                                    </span>
+                                  );
+                                })}
                               </div>
                             </div>
                           </motion.div>

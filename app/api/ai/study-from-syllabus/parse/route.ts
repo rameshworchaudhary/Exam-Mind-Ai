@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
         file.type === "application/pdf" ||
         file.type.includes("pdf") ||
         file.name.toLowerCase().endsWith(".pdf") ||
-        buffer.slice(0, 4).toString() === "%PDF";
+        buffer.subarray(0, 8).toString("latin1").includes("%PDF");
 
       if (isPdf) {
         try {
@@ -71,9 +71,10 @@ export async function POST(req: NextRequest) {
           );
         }
       } else {
-        // Plain text file
+        // Plain text file (strips UTF-8 BOM if present)
         text = buffer
           .toString("utf-8")
+          .replace(/^\uFEFF/, "")
           .replace(/\r\n/g, "\n")
           .replace(/\r/g, "\n")
           .replace(/\u0000/g, "")

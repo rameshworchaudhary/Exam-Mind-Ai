@@ -43,7 +43,6 @@ import {
   saveStudySyllabusSession,
   updateStudySyllabusSession,
   getUserStudySyllabusSessions,
-  incrementUserProfileField,
 } from "@/firebase/firestore";
 import { toast } from "sonner";
 import {
@@ -437,8 +436,8 @@ export default function StudyFromSyllabusPage() {
       setCurrentLesson(json.data);
 
       if (user?.uid) {
-        incrementUserProfileField(user.uid, "aiUsageCount", 1);
-        refreshDailyUsage();
+        await refreshDailyUsage(user.uid);
+        await refreshProfile(user.uid);
       }
     } catch (err: any) {
       console.error("Load topic lesson error:", err);
@@ -621,8 +620,8 @@ export default function StudyFromSyllabusPage() {
       setCompletionSummary(json.data);
       toast.success("🎉 Full Syllabus Completed! Exam Revision Package Generated!");
       if (user?.uid) {
-        incrementUserProfileField(user.uid, "aiUsageCount", 1);
-        refreshDailyUsage();
+        await refreshDailyUsage(user.uid);
+        await refreshProfile(user.uid);
       }
     } catch (err: any) {
       console.error("Completion error:", err);

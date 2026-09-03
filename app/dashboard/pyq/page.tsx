@@ -87,7 +87,7 @@ export default function PYQPage() {
 
       setUploadProgress(80);
 
-      // ✅ Safe data extraction
+      // Safe data extraction
       const safeAnalysis: PYQAnalysis = {
         repeatedQuestions: Array.isArray(data?.repeatedQuestions) ? data.repeatedQuestions : [],
         importantTopics: Array.isArray(data?.importantTopics) ? data.importantTopics : [],
@@ -95,24 +95,30 @@ export default function PYQPage() {
         trends: Array.isArray(data?.trends) ? data.trends : [],
       };
 
-      await saveUpload(user.uid, {
-        type: "pyq",
-        fileName: file.name,
-        fileUrl: "",
-        subject: subject || "General",
-        analysis: JSON.parse(JSON.stringify(safeAnalysis)),
-      });
-
-      await savePrediction(user.uid, {
-        type: "pyq",
-        subject: subject || "General",
-        ...safeAnalysis,
-      });
-
-      await incrementUserProfileField(user.uid, "aiUsageCount", 1);
-      await refreshProfile();
       setUploadProgress(100);
       setAnalysis(safeAnalysis);
+
+      // Safe non-blocking persistence
+      try {
+        await saveUpload(user.uid, {
+          type: "pyq",
+          fileName: file.name,
+          fileUrl: "",
+          subject: subject || "General",
+          analysis: JSON.parse(JSON.stringify(safeAnalysis)),
+        });
+
+        await savePrediction(user.uid, {
+          type: "pyq",
+          subject: subject || "General",
+          ...safeAnalysis,
+        });
+
+        await refreshProfile();
+      } catch (saveErr) {
+        console.warn("Failed to persist PYQ upload history:", saveErr);
+      }
+
       toast.success("PYQ analysis complete! 🎉");
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Analysis failed";
@@ -122,10 +128,14 @@ export default function PYQPage() {
     }
   };
 
-  const topicChartData = analysis?.importantTopics?.slice(0, 8).map((t) => ({
-    topic: t.topic.length > 15 ? t.topic.slice(0, 15) + "..." : t.topic,
-    weightage: t.weightage,
-  })) || [];
+  const topicChartData = analysis?.importantTopics?.slice(0, 8).map((t, idx) => {
+    const rawTopic = typeof t === "string" ? t : (t?.topic || (t as any)?.name || `Topic ${idx + 1}`);
+    const weight = typeof t === "object" && typeof t.weightage === "number" && !isNaN(t.weightage) ? t.weightage : 20;
+    return {
+      topic: rawTopic.length > 15 ? rawTopic.slice(0, 15) + "..." : rawTopic,
+      weightage: weight,
+    };
+  }) || [];
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -248,14 +258,17 @@ export default function PYQPage() {
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {analysis.trends.length > 0 ? (
-                  analysis.trends.map((trend, i) => (
-                    <span
-                      key={i}
-                      className="text-xs bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2.5 py-1 rounded-md"
-                    >
-                      {trend}
-                    </span>
-                  ))
+                  analysis.trends.map((trend, i) => {
+                    const trendText = typeof trend === "string" ? trend : (trend as any)?.trend || (trend as any)?.description || String(trend);
+                    return (
+                      <span
+                        key={i}
+                        className="text-xs bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2.5 py-1 rounded-md"
+                      >
+                        {trendText}
+                      </span>
+                    );
+                  })
                 ) : (
                   <p className="text-xs text-muted-foreground">No recurring trends detected</p>
                 )}
@@ -303,24 +316,29 @@ export default function PYQPage() {
                 </div>
                 {analysis.repeatedQuestions.length > 0 ? (
                   <div className="space-y-2.5 max-h-[230px] overflow-y-auto pr-1">
-                    {analysis.repeatedQuestions.map((q, i) => (
-                      <div key={i} className="border border-border/70 rounded-lg p-3 bg-muted/20">
-                        <p className="text-xs font-medium text-foreground mb-2 leading-snug">{q.question}</p>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-muted-foreground font-mono">Appeared in {q.frequency} papers</span>
-                          <span className={`font-mono font-semibold ${getProbabilityColor(q.probability)}`}>{q.probability}% probability</span>
+                    {analysis.repeatedQuestions.map((q, i) => {
+                      const qText = typeof q === "string" ? q : q.question || (q as any)?.q || "";
+                      const freq = typeof q === "object" && typeof q.frequency === "number" ? q.frequency : 2;
+                      const prob = typeof q === "object" && typeof q.probability === "number" ? q.probability : 75;
+                      return (
+                        <div key={i} className="border border-border/70 rounded-lg p-3 bg-muted/20">
+                          <p className="text-xs font-medium text-foreground mb-2 leading-snug">{qText}</p>
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-muted-foreground font-mono">Appeared in {freq} papers</span>
+                            <span className={`font-mono font-semibold ${getProbabilityColor(prob)}`}>{prob}% probability</span>
+                          </div>
+                          <div className="h-1 bg-muted rounded-full mt-1.5 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${prob}%`,
+                                background: prob >= 80 ? "#10b981" : prob >= 60 ? "#f59e0b" : "#ef4444",
+                              }}
+                            />
+                          </div>
                         </div>
-                        <div className="h-1 bg-muted rounded-full mt-1.5 overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${q.probability}%`,
-                              background: q.probability >= 80 ? "#10b981" : q.probability >= 60 ? "#f59e0b" : "#ef4444",
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">No exact recurring questions found</p>
@@ -339,45 +357,41 @@ export default function PYQPage() {
               </div>
               {analysis.predictions.length > 0 ? (
                 <div className="space-y-3">
-                  {analysis.predictions.map((pred, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="border border-border/70 rounded-lg p-3.5 bg-muted/20 hover:border-sky-500/40 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start gap-2.5 mb-1.5">
-                            <span className="w-5 h-5 rounded bg-sky-500/20 text-sky-300 font-mono text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">
-                              {i + 1}
+                  {analysis.predictions.map((pred, i) => {
+                    const predText = typeof pred === "string" ? pred : pred.question || (pred as any)?.prediction || "";
+                    const predProb = typeof pred === "object" && typeof pred.probability === "number" ? pred.probability : 85;
+                    const reasoning = typeof pred === "object" && pred.reasoning ? pred.reasoning : "High historical recurrence in exam patterns";
+                    return (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="border border-border/70 rounded-lg p-3.5 bg-muted/20 hover:border-sky-500/40 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start gap-2.5 mb-1.5">
+                              <span className="w-5 h-5 rounded bg-sky-500/20 text-sky-300 font-mono text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">
+                                {i + 1}
+                              </span>
+                              <p className="font-medium text-xs sm:text-sm text-foreground leading-snug">{predText}</p>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground pl-7 leading-relaxed">{reasoning}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className={`font-mono text-sm font-semibold ${getProbabilityColor(predProb)}`}>
+                              {predProb}%
                             </span>
-                            <p className="font-medium text-xs sm:text-sm text-foreground leading-snug">{pred.question}</p>
+                            <p className="text-[10px] text-muted-foreground">confidence</p>
                           </div>
-                          <p className="text-[11px] text-muted-foreground pl-7 leading-relaxed">{pred.reasoning}</p>
                         </div>
-                        <div className="text-right shrink-0">
-                          <div className={`text-base font-mono font-bold ${getProbabilityColor(pred.probability)}`}>
-                            {pred.probability}%
-                          </div>
-                          <div className="text-[10px] font-mono text-muted-foreground uppercase">Probability</div>
-                        </div>
-                      </div>
-                      <div className="h-1 bg-muted rounded-full mt-2.5 ml-7 overflow-hidden">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${pred.probability}%`,
-                            background: pred.probability >= 80 ? "#10b981" : pred.probability >= 60 ? "#f59e0b" : "#ef4444",
-                          }}
-                        />
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    );
+                  })}
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">No predictions generated yet</p>
+                <p className="text-xs text-muted-foreground">No predictions available</p>
               )}
             </div>
 

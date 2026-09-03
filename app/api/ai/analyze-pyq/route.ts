@@ -19,9 +19,10 @@ export async function POST(req: NextRequest) {
       text = body?.text || "";
       subject = body?.subject || "General";
 
-      if (text.startsWith("%PDF")) {
+      if (text.includes("%PDF") && text.length > 50) {
         try {
-          const buffer = Buffer.from(text, "latin1");
+          const pdfIndex = text.indexOf("%PDF");
+          const buffer = Buffer.from(text.slice(pdfIndex), "latin1");
           const extracted = await extractTextFromPdf(buffer);
           if (extracted && extracted.trim().length > 10) {
             text = extracted;
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
       const isPdf =
         file.type === "application/pdf" ||
         file.name.toLowerCase().endsWith(".pdf") ||
-        buffer.slice(0, 4).toString() === "%PDF";
+        buffer.subarray(0, 16).toString("latin1").includes("%PDF");
 
       if (isPdf) {
         try {
@@ -72,6 +73,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Clean leading BOM or unprintable null bytes
+    text = text.replace(/^\uFEFF/, "").replace(/\0/g, "").replace(/\r\n/g, "\n").trim();
 
     // Strictly authenticate using Firebase Bearer ID Token
     const uid = await getVerifiedUid(req);
