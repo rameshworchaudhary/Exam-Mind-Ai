@@ -568,7 +568,7 @@ Return ONLY a valid JSON object matching this schema:
 }
 
 PYQ content:
-${pyqText.slice(0, 6000)}`,
+${pyqText.slice(0, 12000)}`,
       },
     ],
     temperature: 0.2,

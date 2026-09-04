@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
     "*.run.app",
     "*.asia-east1.run.app",
     "*.asia-southeast1.run.app",
+    "ais-dev-vqav3tpk6qnbhte2lkovjd-905144230119.asia-east1.run.app",
+    "ais-pre-vqav3tpk6qnbhte2lkovjd-905144230119.asia-east1.run.app",
     "ais-dev-mhbg7crmfj5zu2xcqcrten-905144230119.asia-east1.run.app",
     "ais-pre-mhbg7crmfj5zu2xcqcrten-905144230119.asia-east1.run.app",
     "localhost:3000",

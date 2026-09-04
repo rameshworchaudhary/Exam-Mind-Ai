@@ -235,7 +235,8 @@ export function extractPYQDeterministically(
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
 
-  const questionRegex = /^(?:q(?:uestion)?\s*[-.]*\s*\d+|[0-9]{1,2}\s*[.)]|(?:\([a-z0-9]+\)))\s*(.+)/i;
+  const questionRegex =
+    /^(?:(?:q(?:uestion)?|प्रश्न|प्र)\s*[-.:]*\s*\d+|[0-9]{1,2}\s*[.)]|(?:\([a-z0-9क-हivxlcdm]+\)))\s*(.+)/iu;
   const questions: string[] = [];
 
   for (const line of lines) {
@@ -244,7 +245,8 @@ export function extractPYQDeterministically(
       questions.push(qMatch[1].trim());
     } else if (
       (line.endsWith("?") ||
-        /^(?:what|why|how|explain|describe|define|discuss|derive|differentiate|compare|state|calculate|prove)\b/i.test(
+        line.endsWith("।") ||
+        /^(?:what|why|how|explain|describe|define|discuss|derive|differentiate|compare|state|calculate|prove|प्रकाश|स्पष्ट|समझाइए|वर्णन|परिभाषित|व्याख्या|सिद्ध|ज्ञात)\b/iu.test(
           line
         )) &&
       line.length > 15
@@ -456,7 +458,7 @@ Return ONLY a valid JSON object matching this schema:
 }
 
 PYQ content:
-${pyqText.slice(0, 6000)}`,
+${pyqText.slice(0, 12000)}`,
           },
         ],
         response_format: { type: "json_object" },

@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. RUN AI ANALYSIS (PRIMARY: NVIDIA Nemotron -> FALLBACK: Groq)
-    const result = await analyzePYQ(text.slice(0, 6000), subject);
+    const result = await analyzePYQ(text.slice(0, 12000), subject);
 
     // Ensure AI result is valid before consuming usage quota
     if (!result || (!result.repeatedQuestions?.length && !result.importantTopics?.length && !result.predictions?.length)) {
